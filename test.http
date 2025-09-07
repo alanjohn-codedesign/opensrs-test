@@ -1,0 +1,335 @@
+### ========================================
+### OPENRS API - ESSENTIAL ROUTES
+### Using alanjohnchacko.com as example domain
+### ========================================
+###
+### This file contains the essential OpenSRS API endpoints for domain management:
+### 1. Domain Lookup - Check if a domain is available
+### 2. Domain Pricing - Get pricing information for domains
+### 3. Domain Suggestions - Get alternative domain suggestions
+### 4. Domain Registration - Register a new domain
+###
+### Prerequisites:
+### - Make sure your OpenSRS API credentials are configured in .env file
+### - Server should be running on http://localhost:3000
+### - All requests use JSON format
+###
+### Response Format:
+### All successful responses include:
+### - success: boolean (true/false)
+### - responseCode: string (OpenSRS response code)
+### - responseText: string (Human-readable message)
+### - data: object (API-specific data)
+###
+### Error responses include:
+### - success: false
+### - error: string (Error type)
+### - message: string (Error description)
+
+### ========================================
+### HEALTH CHECK
+### ========================================
+
+### Server Health Check
+### Purpose: Verify that the API server is running and healthy
+### Method: GET
+### Response: Server status, timestamp, environment info
+### Example Response:
+### {
+###   "status": "OK",
+###   "timestamp": "2024-01-01T12:00:00.000Z",
+###   "environment": "development",
+###   "version": "1.0.0"
+### }
+GET http://localhost:3000/health
+
+### ========================================
+### DOMAIN LOOKUP
+### ========================================
+
+### Single Domain Lookup (Check Availability)
+### Purpose: Check if a specific domain name is available for registration
+### Method: POST
+### Required Fields: domain (string)
+### Response Codes:
+### - 200/210: Domain is available
+### - 211: Domain is taken/not available
+### - 500: Server error
+### Example Response (Available):
+### {
+###   "success": true,
+###   "domain": "alanjohnchacko.com",
+###   "available": true,
+###   "responseCode": "210",
+###   "responseText": "Domain is available",
+###   "message": "Domain is available",
+###   "data": { ... },
+###   "timestamp": "2024-01-01T12:00:00.000Z"
+### }
+### Example Response (Taken):
+### {
+###   "success": true,
+###   "domain": "alanjohnchacko.com",
+###   "available": false,
+###   "responseCode": "211",
+###   "responseText": "Domain is taken",
+###   "message": "Domain is taken",
+###   "data": { ... },
+###   "timestamp": "2024-01-01T12:00:00.000Z"
+### }
+POST http://localhost:3000/api/domains/lookup
+Content-Type: application/json
+
+{
+  "domain": "alanjohnchacko.com"
+}
+
+
+### ========================================
+### DOMAIN PRICING
+### ========================================
+
+### Get Single Domain Price (Primary Endpoint)
+### Purpose: Get pricing information for a specific domain
+### Method: GET
+### URL Parameter: domain (string) - The domain name to check pricing for
+### Response: Domain pricing details including registration cost, renewal cost, etc.
+### Example Response:
+### {
+###   "success": true,
+###   "domain": "alanjohnchacko.com",
+###   "data": {
+###     "price": "12.99",
+###     "currency": "USD",
+###     "registration_price": "12.99",
+###     "renewal_price": "12.99",
+###     "transfer_price": "12.99",
+###     "tld": "com",
+###     "period": 1
+###   }
+### }
+GET http://localhost:3000/api/domains/alanjohnchacko.com/price
+
+### Get Domain Price (Alternative Endpoint)
+### Purpose: Alternative endpoint for getting domain pricing (same functionality as above)
+### Method: GET
+### URL Parameter: domain (string) - The domain name to check pricing for
+### Note: This endpoint provides the same pricing information as the primary endpoint
+### Use this if you prefer the /api/pricing/ route structure
+GET http://localhost:3000/api/pricing/alanjohnchacko.com
+
+
+### ========================================
+### DOMAIN SUGGESTIONS
+### ========================================
+
+### Get Domain Suggestions
+### Purpose: Get alternative domain name suggestions based on a search string
+### Method: POST
+### Required Fields:
+### - searchString (string): The base string to generate suggestions from
+### - services (array): Services to include ["lookup", "suggestion"]
+### - tlds (array): Top-level domains to check [".com", ".net", ".org", ".info"]
+### - languages (array): Language codes ["en"]
+### - maxWaitTime (number): Maximum wait time in seconds (default: 30)
+### Response: List of suggested domains with availability status
+### Example Response:
+### {
+###   "success": true,
+###   "responseCode": "200",
+###   "responseText": "Command completed successfully",
+###   "suggestions": {
+###     "count": 10,
+###     "items": [
+###       {
+###         "domain": "alanjohnchacko.com",
+###         "status": "available",
+###         "available": true
+###       },
+###       {
+###         "domain": "alanjohnchacko.net",
+###         "status": "taken",
+###         "available": false
+###       }
+###     ]
+###   },
+###   "lookups": {
+###     "count": 5,
+###     "items": [...]
+###   },
+###   "isSearchCompleted": true,
+###   "responseTime": 0.367
+### }
+POST http://localhost:3000/api/suggestions
+Content-Type: application/json
+
+{
+  "searchString": "alanjohnchacko",
+  "services": ["lookup", "suggestion"],
+  "tlds": [".com", ".net", ".org", ".info"],
+  "languages": ["en"],
+  "maxWaitTime": 30
+}
+
+### ========================================
+### DOMAIN REGISTRATION
+### ========================================
+
+### Domain Registration
+### Purpose: Register a new domain name with OpenSRS
+### Method: POST
+### Required Fields:
+### - domain (string): The domain name to register
+### - period (number): Registration period in years (default: 1)
+### - auto_renew (boolean): Enable automatic renewal
+### - whois_privacy (boolean): Enable WHOIS privacy protection
+### - registrant_contact (object): Contact information for domain registration
+### Optional Fields:
+### - nameservers (array): Custom nameservers (default: OpenSRS nameservers)
+### - admin_contact (object): Administrative contact (defaults to registrant)
+### - tech_contact (object): Technical contact (defaults to registrant)
+### - billing_contact (object): Billing contact (defaults to registrant)
+### Response: Registration confirmation with order details
+### Example Response:
+### {
+###   "success": true,
+###   "domain": "alanjohnchacko.com",
+###   "period": 1,
+###   "responseCode": "200",
+###   "responseText": "Command completed successfully",
+###   "orderId": "12345678",
+###   "data": {
+###     "order_id": "12345678",
+###     "status": "success",
+###     "expiry_date": "2025-01-01T00:00:00.000Z"
+###   }
+### }
+### Important Notes:
+### - Domain must be available before registration
+### - Contact information must be valid and complete
+### - Registration is immediate and cannot be undone
+### - Payment is required for successful registration
+POST http://localhost:3000/api/domains/register
+Content-Type: application/json
+
+{
+  "domain": "alanjohnchacko.com",
+  "period": 1,
+  "auto_renew": false,
+  "whois_privacy": true,
+  "registrant_contact": {
+    "first_name": "Alan",
+    "last_name": "John Chacko",
+    "org_name": "Alan's Company",
+    "address1": "123 Main Street",
+    "city": "New York",
+    "state": "NY",
+    "country": "US",
+    "postal_code": "10001",
+    "phone": "+1.5551234567",
+    "email": "alan@alanjohnchacko.com"
+  },
+  "nameservers": ["ns1.systemdns.com", "ns2.systemdns.com"]
+}
+
+### ========================================
+### COMPLETE WORKFLOW EXAMPLE
+### ========================================
+###
+### This section demonstrates the typical flow for domain registration:
+### 1. Check domain availability
+### 2. Get pricing information
+### 3. Get alternative suggestions (optional)
+### 4. Register the domain
+###
+### Follow these steps in order for a successful domain registration process.
+
+### Step 1: Check if domain is available
+### Always check availability before attempting registration
+### This prevents failed registration attempts and wasted API calls
+POST http://localhost:3000/api/domains/lookup
+Content-Type: application/json
+
+{
+  "domain": "alanjohnchacko.com"
+}
+
+### Step 2: Get domain price
+### Check pricing to understand the cost before proceeding with registration
+### This helps with budgeting and cost estimation
+GET http://localhost:3000/api/domains/alanjohnchacko.com/price
+
+### Step 3: Get domain suggestions (if needed)
+### Optional step: Get alternative domain suggestions if the primary domain is taken
+### This helps find available alternatives with similar names
+POST http://localhost:3000/api/suggestions
+Content-Type: application/json
+
+{
+  "searchString": "alanjohnchacko",
+  "services": ["lookup", "suggestion"],
+  "tlds": [".com", ".net", ".org"],
+  "languages": ["en"],
+  "maxWaitTime": 30
+}
+
+### Step 4: Register domain
+### Final step: Register the domain with complete contact information
+### Ensure all required fields are filled and contact information is valid
+### This is a permanent action that cannot be undone
+POST http://localhost:3000/api/domains/register
+Content-Type: application/json
+
+{
+  "domain": "alanjohnchacko.com",
+  "period": 1,
+  "auto_renew": true,
+  "whois_privacy": false,
+  "registrant_contact": {
+    "first_name": "Alan",
+    "last_name": "John Chacko",
+    "org_name": "Alan's Company",
+    "address1": "123 Main St",
+    "city": "New York",
+    "state": "NY",
+    "country": "US",
+    "postal_code": "10001",
+    "phone": "+1.5551234567",
+    "email": "alan@alanjohnchacko.com"
+  }
+}
+
+### ========================================
+### TROUBLESHOOTING GUIDE
+### ========================================
+###
+### Common Issues and Solutions:
+###
+### 1. "Domain is taken" Error
+###    - Try alternative TLDs (.net, .org, .info)
+###    - Use domain suggestions to find alternatives
+###    - Check for typos in the domain name
+###
+### 2. "Authentication failed" Error
+###    - Verify OpenSRS credentials in .env file
+###    - Check if API key has proper permissions
+###    - Ensure test mode is correctly configured
+###
+### 3. "Invalid contact information" Error
+###    - Ensure all required contact fields are provided
+###    - Verify email address format
+###    - Check phone number format (include country code)
+###    - Ensure postal code matches the country
+###
+### 4. "Server not responding" Error
+###    - Check if server is running on localhost:3000
+###    - Verify network connectivity
+###    - Check server logs for detailed error messages
+###
+### 5. "Rate limit exceeded" Error
+###    - Wait before making additional requests
+###    - Implement request throttling in your application
+###    - Check OpenSRS account limits
+###
+### For additional help, check the OpenSRS API documentation
+### or contact OpenSRS support with specific error messages.
