@@ -313,6 +313,8 @@ router.post('/register',
       );
       
       console.log('📋 OpenSRS Registration Response:', JSON.stringify(result, null, 2));
+      console.log('📋 Registration Response Data Keys:', Object.keys(result.data || {}));
+      console.log('📋 Registration Response Data Values:', result.data);
       
       if (!result.success) {
         return res.status(500).json({
@@ -324,14 +326,31 @@ router.post('/register',
         });
       }
 
+      // Filter out unnecessary fields for registration response
+      const cleanData = {};
+      if (result.data.order_id) cleanData.order_id = result.data.order_id;
+      if (result.data.orderId) cleanData.orderId = result.data.orderId;
+      if (result.data.id) cleanData.id = result.data.id;
+      if (result.data.status) cleanData.status = result.data.status;
+      if (result.data.expiry_date) cleanData.expiry_date = result.data.expiry_date;
+      if (result.data.creation_date) cleanData.creation_date = result.data.creation_date;
+      if (result.data.registrant_email) cleanData.registrant_email = result.data.registrant_email;
+      if (result.data.admin_email) cleanData.admin_email = result.data.admin_email;
+      if (result.data.transfer_id) cleanData.transfer_id = result.data.transfer_id;
+      if (result.data.registration_text) cleanData.registration_text = result.data.registration_text;
+      if (result.data.registration_code) cleanData.registration_code = result.data.registration_code;
+      if (result.data.nameservers) cleanData.nameservers = result.data.nameservers;
+      if (result.data.auto_renew) cleanData.auto_renew = result.data.auto_renew;
+      if (result.data.whois_privacy) cleanData.whois_privacy = result.data.whois_privacy;
+
       res.json({
         success: true,
         domain,
         period: period || 1,
         responseCode: result.responseCode,
         responseText: result.responseText,
-        orderId: result.data?.order_id || result.data?.orderId || null,
-        data: result.data
+        orderId: result.data?.order_id || result.data?.orderId || result.data?.id || null,
+        data: cleanData
       });
     } catch (error) {
       console.error('Domain registration error:', error);
@@ -586,10 +605,17 @@ router.get('/:domain/price', async (req, res) => {
       });
     }
 
+    // Filter out unnecessary fields for pricing response
+    const cleanData = {};
+    if (result.data.price) cleanData.price = result.data.price;
+    if (result.data.is_registry_premium) cleanData.is_registry_premium = result.data.is_registry_premium;
+    if (result.data.registry_premium_group) cleanData.registry_premium_group = result.data.registry_premium_group;
+    if (result.data.prices) cleanData.prices = result.data.prices;
+
     res.json({
       success: true,
       domain,
-      data: result.data
+      data: cleanData
     });
   } catch (error) {
     console.error('Get domain price error:', error);
@@ -700,409 +726,6 @@ router.post('/bulk-price', async (req, res) => {
     });
   } catch (error) {
     console.error('Bulk pricing error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Internal server error',
-      message: error.message
-    });
-  }
-});
-
-/**
- * @swagger
- * /api/domains:
- *   get:
- *     summary: Get all domains
- *     description: Retrieve list of all domains owned by the user
- *     tags: [Domains]
- *     parameters:
- *       - in: query
- *         name: status
- *         schema:
- *           type: string
- *           enum: [active, expired, deleted, all]
- *         description: Filter domains by status
- *       - in: query
- *         name: limit
- *         schema:
- *           type: integer
- *           default: 100
- *         description: Maximum number of domains to return
- *     responses:
- *       200:
- *         description: Domains retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 domains:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       domain:
- *                         type: string
- *                       status:
- *                         type: string
- *                       expiry_date:
- *                         type: string
- *                       auto_renew:
- *                         type: boolean
- *                       nameservers:
- *                         type: array
- *                         items:
- *                           type: string
- *       500:
- *         description: Internal server error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- */
-router.get('/', async (req, res) => {
-  try {
-    const { status = 'all', limit = 100, startDate, endDate } = req.query;
-    
-    console.log('📋 Getting all domains with status:', status);
-    
-    let start, end;
-    
-    if (startDate && endDate) {
-      // Use provided date range
-      start = startDate;
-      end = endDate;
-    } else {
-      // Use a very wide date range to get most domains
-      const currentDate = new Date();
-      const farFuture = new Date();
-      farFuture.setFullYear(currentDate.getFullYear() + 10);
-      
-      start = currentDate.toISOString().split('T')[0];
-      end = farFuture.toISOString().split('T')[0];
-    }
-    
-    console.log('📅 Date range:', start, 'to', end);
-    
-    const result = await opensrsClient.getDomainsByExpireDate(start, end);
-    
-    if (!result.success) {
-      return res.status(500).json({
-        success: false,
-        error: result.error,
-        message: 'Failed to get domains list',
-        responseCode: result.responseCode,
-        responseText: result.responseText
-      });
-    }
-    
-    // Process the domains data
-    let domains = [];
-    if (result.data && result.data.domains) {
-      domains = result.data.domains.map(domain => ({
-        id: domain.id || domain.domain, // Use domain as ID if no ID provided
-        domain: domain.domain,
-        name: domain.domain, // Alias for easier access
-        status: domain.status || 'active',
-        expiry_date: domain.expiry_date,
-        creation_date: domain.creation_date,
-        auto_renew: domain.auto_renew === '1' || domain.auto_renew === 1,
-        whois_privacy: domain.whois_privacy === '1' || domain.whois_privacy === 1,
-        nameservers: domain.nameservers || [],
-        registrant_email: domain.registrant_email,
-        admin_email: domain.admin_email,
-        tech_email: domain.tech_email,
-        billing_email: domain.billing_email,
-        tld: domain.domain?.split('.').pop() || '',
-        registration_period: domain.registration_period,
-        last_updated: domain.last_updated || new Date().toISOString()
-      }));
-    }
-    
-    // Filter by status if specified
-    if (status !== 'all') {
-      domains = domains.filter(domain => domain.status === status);
-    }
-    
-    // Sort by domain name
-    domains.sort((a, b) => a.domain.localeCompare(b.domain));
-    
-    // Limit results
-    domains = domains.slice(0, parseInt(limit));
-    
-    res.json({
-      success: true,
-      domains,
-      total: domains.length,
-      status: status,
-      limit: parseInt(limit),
-      dateRange: { start, end },
-      message: `Found ${domains.length} domains`
-    });
-  } catch (error) {
-    console.error('Get domains list error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Internal server error',
-      message: error.message
-    });
-  }
-});
-
-/**
- * @swagger
- * /api/domains/deleted:
- *   get:
- *     summary: Get deleted domains
- *     description: Retrieve list of deleted domains
- *     tags: [Domains]
- *     responses:
- *       200:
- *         description: Deleted domains retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 deletedDomains:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       domain:
- *                         type: string
- *                       deletion_date:
- *                         type: string
- *       500:
- *         description: Internal server error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- */
-/**
- * @swagger
- * /api/domains/by-date-range:
- *   get:
- *     summary: Get domains by date range
- *     description: Retrieve domains that expire within a specific date range
- *     tags: [Domains]
- *     parameters:
- *       - in: query
- *         name: startDate
- *         required: true
- *         schema:
- *           type: string
- *           format: date
- *         description: Start date (YYYY-MM-DD)
- *       - in: query
- *         name: endDate
- *         required: true
- *         schema:
- *           type: string
- *           format: date
- *         description: End date (YYYY-MM-DD)
- *     responses:
- *       200:
- *         description: Domains retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 domains:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       id:
- *                         type: string
- *                       domain:
- *                         type: string
- *                       name:
- *                         type: string
- *                       status:
- *                         type: string
- *                       expiry_date:
- *                         type: string
- *       400:
- *         description: Bad request
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *       500:
- *         description: Internal server error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- */
-router.get('/by-date-range', async (req, res) => {
-  try {
-    const { startDate, endDate } = req.query;
-    
-    if (!startDate || !endDate) {
-      return res.status(400).json({
-        success: false,
-        error: 'Missing required parameters',
-        message: 'Both startDate and endDate are required (format: YYYY-MM-DD)'
-      });
-    }
-    
-    console.log('📅 Getting domains by date range:', startDate, 'to', endDate);
-    
-    const result = await opensrsClient.getDomainsByExpireDate(startDate, endDate);
-    
-    if (!result.success) {
-      return res.status(500).json({
-        success: false,
-        error: result.error,
-        message: 'Failed to get domains by date range',
-        responseCode: result.responseCode,
-        responseText: result.responseText
-      });
-    }
-    
-    // Process the domains data
-    let domains = [];
-    if (result.data && result.data.domains) {
-      domains = result.data.domains.map(domain => ({
-        id: domain.id || domain.domain,
-        domain: domain.domain,
-        name: domain.domain,
-        status: domain.status || 'active',
-        expiry_date: domain.expiry_date,
-        creation_date: domain.creation_date,
-        auto_renew: domain.auto_renew === '1' || domain.auto_renew === 1,
-        whois_privacy: domain.whois_privacy === '1' || domain.whois_privacy === 1,
-        nameservers: domain.nameservers || [],
-        tld: domain.domain?.split('.').pop() || ''
-      }));
-    }
-    
-    res.json({
-      success: true,
-      domains,
-      total: domains.length,
-      dateRange: { startDate, endDate },
-      message: `Found ${domains.length} domains in date range`
-    });
-  } catch (error) {
-    console.error('Get domains by date range error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Internal server error',
-      message: error.message
-    });
-  }
-});
-
-/**
- * @swagger
- * /api/domains/{domain}/orders:
- *   get:
- *     summary: Get orders for a domain
- *     description: Retrieve all orders associated with a specific domain
- *     tags: [Domains]
- *     parameters:
- *       - in: path
- *         name: domain
- *         required: true
- *         schema:
- *           type: string
- *         description: Domain name
- *     responses:
- *       200:
- *         description: Orders retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 domain:
- *                   type: string
- *                 orders:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       order_id:
- *                         type: string
- *                       action:
- *                         type: string
- *                       status:
- *                         type: string
- *       500:
- *         description: Internal server error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- */
-router.get('/:domain/orders', async (req, res) => {
-  try {
-    const { domain } = req.params;
-    
-    console.log('📋 Getting orders for domain:', domain);
-    
-    const result = await opensrsClient.getOrdersByDomain(domain);
-    
-    if (!result.success) {
-      return res.status(500).json({
-        success: false,
-        error: result.error,
-        message: 'Failed to get domain orders',
-        responseCode: result.responseCode,
-        responseText: result.responseText
-      });
-    }
-    
-    res.json({
-      success: true,
-      domain,
-      orders: result.data?.orders || [],
-      total: result.data?.orders?.length || 0
-    });
-  } catch (error) {
-    console.error('Get domain orders error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Internal server error',
-      message: error.message
-    });
-  }
-});
-
-router.get('/deleted', async (req, res) => {
-  try {
-    console.log('🗑️ Getting deleted domains');
-    
-    const result = await opensrsClient.getDeletedDomains();
-    
-    if (!result.success) {
-      return res.status(500).json({
-        success: false,
-        error: result.error,
-        message: 'Failed to get deleted domains'
-      });
-    }
-    
-    res.json({
-      success: true,
-      deletedDomains: result.data?.domains || [],
-      total: result.data?.domains?.length || 0
-    });
-  } catch (error) {
-    console.error('Get deleted domains error:', error);
     res.status(500).json({
       success: false,
       error: 'Internal server error',

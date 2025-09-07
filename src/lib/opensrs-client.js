@@ -224,6 +224,7 @@ class OpenSRSClient {
   parseXmlResponse(xmlString) {
     try {
       console.log('Parsing XML response to JSON...');
+      console.log('Raw XML response:', xmlString);
 
       const responseCode = this.extractXmlValue(xmlString, 'response_code');
       const responseText = this.extractXmlValue(xmlString, 'response_text');
@@ -268,13 +269,124 @@ class OpenSRSClient {
             }
           }
         }
+      } else {
+        // Try alternative XML structure for registration responses
+        console.log('No attributes section found, trying alternative parsing...');
+        
+        // Look for data in <item key="data"> or similar structures
+        const dataStart = xmlString.indexOf('<item key="data">');
+        if (dataStart !== -1) {
+          const dataAssocStart = xmlString.indexOf('<dt_assoc>', dataStart);
+          if (dataAssocStart !== -1) {
+            const dataAssocBlock = this.balancedSlice(xmlString, dataAssocStart, '<dt_assoc>', '</dt_assoc>');
+            if (dataAssocBlock) {
+              const inner = dataAssocBlock.slice('<dt_assoc>'.length, -'</dt_assoc>'.length);
+              result.data = this.parseAttributes(inner);
+            }
+          }
+        }
+        
+        // Also try to extract data directly from the main dt_assoc structure
+        // This is common for registration responses where data is at the root level
+        const mainAssocStart = xmlString.indexOf('<dt_assoc>');
+        if (mainAssocStart !== -1 && !result.data) {
+          console.log('Trying to parse main dt_assoc structure...');
+          const mainAssocBlock = this.balancedSlice(xmlString, mainAssocStart, '<dt_assoc>', '</dt_assoc>');
+          if (mainAssocBlock) {
+            const inner = mainAssocBlock.slice('<dt_assoc>'.length, -'</dt_assoc>'.length);
+            result.data = this.parseAttributes(inner);
+          }
+        }
       }
 
       if (!result.data) {
-        result.data = {
-          is_search_completed: this.extractXmlValue(xmlString, 'is_search_completed'),
-          request_response_time: this.extractXmlValue(xmlString, 'request_response_time')
-        };
+        // For registration and other operations, look for data in different XML structure
+        // Based on OpenSRS documentation, registration responses typically include:
+        const orderId = this.extractXmlValue(xmlString, 'order_id') || this.extractXmlValue(xmlString, 'orderId') || this.extractXmlValue(xmlString, 'id');
+        const status = this.extractXmlValue(xmlString, 'status');
+        const expiryDate = this.extractXmlValue(xmlString, 'expiry_date');
+        const creationDate = this.extractXmlValue(xmlString, 'creation_date');
+        const registrantEmail = this.extractXmlValue(xmlString, 'registrant_email');
+        const adminEmail = this.extractXmlValue(xmlString, 'admin_email');
+        const transferId = this.extractXmlValue(xmlString, 'transfer_id');
+        const registrationText = this.extractXmlValue(xmlString, 'registration_text');
+        const registrationCode = this.extractXmlValue(xmlString, 'registration_code');
+        
+        result.data = {};
+        
+        // Add order information if present
+        if (orderId) result.data.order_id = orderId;
+        if (status) result.data.status = status;
+        if (expiryDate) result.data.expiry_date = expiryDate;
+        if (creationDate) result.data.creation_date = creationDate;
+        if (registrantEmail) result.data.registrant_email = registrantEmail;
+        if (adminEmail) result.data.admin_email = adminEmail;
+        if (transferId) result.data.transfer_id = transferId;
+        if (registrationText) result.data.registration_text = registrationText;
+        if (registrationCode) result.data.registration_code = registrationCode;
+        
+        // Add other common fields
+        const autoRenew = this.extractXmlValue(xmlString, 'auto_renew');
+        if (autoRenew) result.data.auto_renew = autoRenew === '1';
+        
+        const whoisPrivacy = this.extractXmlValue(xmlString, 'whois_privacy');
+        if (whoisPrivacy) result.data.whois_privacy = whoisPrivacy === '1';
+        
+        // Add nameserver information
+        const nameservers = this.extractXmlValue(xmlString, 'nameservers');
+        if (nameservers) result.data.nameservers = nameservers;
+        
+        // Add domain status information
+        const domainStatus = this.extractXmlValue(xmlString, 'domain_status');
+        if (domainStatus) result.data.domain_status = domainStatus;
+        
+        // Add registration period
+        const period = this.extractXmlValue(xmlString, 'period');
+        if (period) result.data.period = period;
+        
+        // Debug: Log all available XML values for troubleshooting
+        console.log('Available XML values:', {
+          orderId: this.extractXmlValue(xmlString, 'order_id'),
+          orderIdAlt: this.extractXmlValue(xmlString, 'orderId'),
+          id: this.extractXmlValue(xmlString, 'id'),
+          status: this.extractXmlValue(xmlString, 'status'),
+          expiryDate: this.extractXmlValue(xmlString, 'expiry_date'),
+          creationDate: this.extractXmlValue(xmlString, 'creation_date'),
+          registrantEmail: this.extractXmlValue(xmlString, 'registrant_email'),
+          adminEmail: this.extractXmlValue(xmlString, 'admin_email'),
+          transferId: this.extractXmlValue(xmlString, 'transfer_id'),
+          registrationText: this.extractXmlValue(xmlString, 'registration_text'),
+          registrationCode: this.extractXmlValue(xmlString, 'registration_code'),
+          autoRenew: this.extractXmlValue(xmlString, 'auto_renew'),
+          whoisPrivacy: this.extractXmlValue(xmlString, 'whois_privacy'),
+          nameservers: this.extractXmlValue(xmlString, 'nameservers'),
+          domainStatus: this.extractXmlValue(xmlString, 'domain_status'),
+          period: this.extractXmlValue(xmlString, 'period')
+        });
+        
+        // Also try to extract any other common fields that might be present
+        const allPossibleFields = [
+          'order_id', 'orderId', 'id', 'status', 'expiry_date', 'creation_date', 
+          'registrant_email', 'admin_email', 'transfer_id', 'registration_text', 
+          'registration_code', 'auto_renew', 'whois_privacy', 'nameservers', 
+          'domain_status', 'period', 'domain', 'handle', 'reg_type', 'reg_username'
+        ];
+        
+        console.log('All possible field extractions:');
+        allPossibleFields.forEach(field => {
+          const value = this.extractXmlValue(xmlString, field);
+          if (value) {
+            console.log(`  ${field}: ${value}`);
+          }
+        });
+        
+        // If no specific data found, add search completion fields for lookup operations
+        if (Object.keys(result.data).length === 0) {
+          result.data = {
+            is_search_completed: this.extractXmlValue(xmlString, 'is_search_completed'),
+            request_response_time: this.extractXmlValue(xmlString, 'request_response_time')
+          };
+        }
       }
 
       console.log('Parsed JSON response:', JSON.stringify(result, null, 2));

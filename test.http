@@ -95,19 +95,13 @@ Content-Type: application/json
 ### Purpose: Get pricing information for a specific domain
 ### Method: GET
 ### URL Parameter: domain (string) - The domain name to check pricing for
-### Response: Domain pricing details including registration cost, renewal cost, etc.
+### Response: Simple pricing information with just the price
 ### Example Response:
 ### {
 ###   "success": true,
 ###   "domain": "alanjohnchacko.com",
 ###   "data": {
-###     "price": "12.99",
-###     "currency": "USD",
-###     "registration_price": "12.99",
-###     "renewal_price": "12.99",
-###     "transfer_price": "12.99",
-###     "tld": "com",
-###     "period": 1
+###     "price": "10.85"
 ###   }
 ### }
 GET http://localhost:3000/api/domains/alanjohnchacko.com/price
@@ -116,10 +110,18 @@ GET http://localhost:3000/api/domains/alanjohnchacko.com/price
 ### Purpose: Alternative endpoint for getting domain pricing (same functionality as above)
 ### Method: GET
 ### URL Parameter: domain (string) - The domain name to check pricing for
+### Response: Same as primary endpoint - just the price
+### Example Response:
+### {
+###   "success": true,
+###   "domain": "alanjohnchacko.com",
+###   "data": {
+###     "price": "10.85"
+###   }
+### }
 ### Note: This endpoint provides the same pricing information as the primary endpoint
 ### Use this if you prefer the /api/pricing/ route structure
 GET http://localhost:3000/api/pricing/alanjohnchacko.com
-
 
 ### ========================================
 ### DOMAIN SUGGESTIONS
@@ -159,7 +161,6 @@ GET http://localhost:3000/api/pricing/alanjohnchacko.com
 ###     "count": 5,
 ###     "items": [...]
 ###   },
-###   "isSearchCompleted": true,
 ###   "responseTime": 0.367
 ### }
 POST http://localhost:3000/api/suggestions
@@ -198,12 +199,17 @@ Content-Type: application/json
 ###   "domain": "alanjohnchacko.com",
 ###   "period": 1,
 ###   "responseCode": "200",
-###   "responseText": "Command completed successfully",
-###   "orderId": "12345678",
+###   "responseText": "Registration successful",
+###   "orderId": "7235",
 ###   "data": {
-###     "order_id": "12345678",
+###     "id": "7235",
+###     "admin_email": "admin@alanjohnchacko.com",
 ###     "status": "success",
-###     "expiry_date": "2025-01-01T00:00:00.000Z"
+###     "expiry_date": "2025-01-01T00:00:00.000Z",
+###     "creation_date": "2024-01-01T00:00:00.000Z",
+###     "registrant_email": "registrant@alanjohnchacko.com",
+###     "auto_renew": false,
+###     "whois_privacy": true
 ###   }
 ### }
 ### Important Notes:

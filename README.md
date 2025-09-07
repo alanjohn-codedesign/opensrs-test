@@ -153,7 +153,6 @@ Content-Type: application/json
     ]
   },
   "lookups": { ... },
-  "isSearchCompleted": true,
   "responseTime": 0.367
 }
 ```

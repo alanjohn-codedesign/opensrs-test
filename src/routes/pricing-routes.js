@@ -53,10 +53,17 @@ router.get('/:domain', async (req, res) => {
       });
     }
 
+    // Filter out unnecessary fields for pricing response
+    const cleanData = {};
+    if (result.data.price) cleanData.price = result.data.price;
+    if (result.data.is_registry_premium) cleanData.is_registry_premium = result.data.is_registry_premium;
+    if (result.data.registry_premium_group) cleanData.registry_premium_group = result.data.registry_premium_group;
+    if (result.data.prices) cleanData.prices = result.data.prices;
+
     res.json({
       success: true,
       domain,
-      data: result.data
+      data: cleanData
     });
   } catch (error) {
     console.error('Get domain price error:', error);

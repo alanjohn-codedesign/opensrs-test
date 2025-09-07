@@ -62,7 +62,6 @@ router.post('/', async (req, res) => {
       responseText: result.responseText,
       suggestions: result.suggestions,
       lookups: result.lookups,
-      isSearchCompleted: result.isSearchCompleted,
       responseTime: result.responseTime
     });
   } catch (error) {
