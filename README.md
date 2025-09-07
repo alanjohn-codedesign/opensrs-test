@@ -399,6 +399,3 @@ For issues or questions:
 ---
 
 **Note**: This is a backend API service. Make sure to implement proper frontend validation and error handling in your client applications.
-#   o p e n s r s - t e s t  
- #   o p e n s r s - t e s t  
- 
