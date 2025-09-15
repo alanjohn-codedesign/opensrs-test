@@ -222,7 +222,16 @@ router.post('/set-zone', async (req, res) => {
  * /api/dns/add-record:
  *   post:
  *     summary: Add a single DNS record
- *     description: Add a new DNS record to existing zone (uses set_dns_zone internally)
+ *     description: |
+ *       Add a new DNS record to existing zone (uses set_dns_zone internally).
+ *       
+ *       ⚠️ CRITICAL: OpenSRS set_dns_zone API REPLACES all existing records.
+ *       This endpoint safely preserves existing records by:
+ *       1. First retrieving all existing DNS records
+ *       2. Adding the new record to the existing set
+ *       3. Sending the complete record set to set_dns_zone
+ *       
+ *       This prevents accidental data loss when adding individual records.
  *     requestBody:
  *       required: true
  *       content:
@@ -244,7 +253,7 @@ router.post('/set-zone', async (req, res) => {
  *       400:
  *         description: Invalid request parameters
  *       500:
- *         description: DNS record addition failed
+ *         description: DNS record addition failed or existing records could not be retrieved
  */
 router.post('/add-record', async (req, res) => {
   try {
@@ -268,21 +277,45 @@ router.post('/add-record', async (req, res) => {
     console.log('🔍 Adding DNS record for domain:', domain);
     console.log('🔍 New record to add:', JSON.stringify(record, null, 2));
 
-    // Get existing records first
+    // Get existing records first - this is CRITICAL to prevent overwriting
+    console.log('🔍 CRITICAL: Getting existing DNS records to prevent overwriting...');
     const existingZone = await req.opensrsClient.getDnsZone(domain);
     let existingRecords = [];
     
     console.log('🔍 Get DNS zone response:', JSON.stringify(existingZone, null, 2));
     
-    if (existingZone.success && existingZone.data && existingZone.data.records) {
-      existingRecords = existingZone.data.records;
-      console.log('🔍 Found existing records:', existingRecords.length);
+    if (existingZone.success && existingZone.data) {
+      // Check different possible locations for records in the response
+      if (existingZone.data.records) {
+        existingRecords = existingZone.data.records;
+        console.log('✅ Found existing records in data.records:', existingRecords.length);
+      } else if (existingZone.data.attributes && existingZone.data.attributes.records) {
+        existingRecords = existingZone.data.attributes.records;
+        console.log('✅ Found existing records in data.attributes.records:', existingRecords.length);
+      } else if (existingZone.attributes && existingZone.attributes.records) {
+        existingRecords = existingZone.attributes.records;
+        console.log('✅ Found existing records in attributes.records:', existingRecords.length);
+      } else {
+        console.log('⚠️ No records found in expected locations');
+        console.log('🔍 Full data structure:', JSON.stringify(existingZone.data, null, 2));
+      }
+      
       console.log('🔍 Existing records:', JSON.stringify(existingRecords, null, 2));
     } else {
       console.log('⚠️ No existing records found or getDnsZone failed');
       console.log('🔍 Success:', existingZone.success);
       console.log('🔍 Data:', existingZone.data);
-      console.log('🔍 Records:', existingZone.data?.records);
+      console.log('🔍 Full response:', JSON.stringify(existingZone, null, 2));
+      
+      // If we can't get existing records, we should not proceed to avoid data loss
+      if (!existingZone.success) {
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to retrieve existing DNS records. Cannot safely add new record without risking data loss.',
+          details: existingZone,
+          timestamp: new Date().toISOString()
+        });
+      }
     }
 
     // Convert record to our internal format
@@ -301,9 +334,13 @@ router.post('/add-record', async (req, res) => {
     // Add the new record to existing records
     const updatedRecords = [...existingRecords, newRecord];
     console.log('🔍 Updated records count:', updatedRecords.length);
-    console.log('🔍 All records to set:', JSON.stringify(updatedRecords, null, 2));
+    console.log('🔍 Existing records count:', existingRecords.length);
+    console.log('🔍 New record being added:', JSON.stringify(newRecord, null, 2));
+    console.log('🔍 All records to set (existing + new):', JSON.stringify(updatedRecords, null, 2));
+    console.log('⚠️ WARNING: Using set_dns_zone which REPLACES all records. This is why we retrieved existing records first.');
 
-    // Set the entire zone with updated records
+    // Set the entire zone with updated records (this REPLACES all existing records)
+    console.log('🔧 Calling setDnsZone with', updatedRecords.length, 'total records');
     const result = await req.opensrsClient.setDnsZone(domain, updatedRecords);
     
     res.json({
@@ -376,17 +413,46 @@ router.post('/update-record', async (req, res) => {
     console.log('🔍 Updating DNS record for domain:', domain);
     console.log('🔍 Record to update:', JSON.stringify(record, null, 2));
 
-    // Get existing records first
+    // Get existing records first - this is CRITICAL to prevent overwriting
+    console.log('🔍 CRITICAL: Getting existing DNS records to prevent overwriting...');
     const existingZone = await req.opensrsClient.getDnsZone(domain);
     let existingRecords = [];
     
-    if (existingZone.success && existingZone.data && existingZone.data.records) {
-      existingRecords = existingZone.data.records;
-      console.log('🔍 Found existing records:', existingRecords.length);
+    console.log('🔍 Get DNS zone response:', JSON.stringify(existingZone, null, 2));
+    
+    if (existingZone.success && existingZone.data) {
+      // Check different possible locations for records in the response
+      if (existingZone.data.records) {
+        existingRecords = existingZone.data.records;
+        console.log('✅ Found existing records in data.records:', existingRecords.length);
+      } else if (existingZone.data.attributes && existingZone.data.attributes.records) {
+        existingRecords = existingZone.data.attributes.records;
+        console.log('✅ Found existing records in data.attributes.records:', existingRecords.length);
+      } else if (existingZone.attributes && existingZone.attributes.records) {
+        existingRecords = existingZone.attributes.records;
+        console.log('✅ Found existing records in attributes.records:', existingRecords.length);
+      } else {
+        console.log('⚠️ No records found in expected locations');
+        console.log('🔍 Full data structure:', JSON.stringify(existingZone.data, null, 2));
+      }
+      
       console.log('🔍 Existing records:', JSON.stringify(existingRecords, null, 2));
     } else {
-      console.log('⚠️ No existing records found');
-      console.log('🔍 Get DNS zone result:', JSON.stringify(existingZone, null, 2));
+      console.log('⚠️ No existing records found or getDnsZone failed');
+      console.log('🔍 Success:', existingZone.success);
+      console.log('🔍 Data:', existingZone.data);
+      console.log('🔍 Full response:', JSON.stringify(existingZone, null, 2));
+      
+      // If we can't get existing records, we should not proceed to avoid data loss
+      if (!existingZone.success) {
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to retrieve existing DNS records. Cannot safely update record without risking data loss.',
+          details: existingZone,
+          timestamp: new Date().toISOString()
+        });
+      }
+      
       return res.status(400).json({
         success: false,
         error: 'No existing DNS zone found. Use add-record instead.',
@@ -428,9 +494,13 @@ router.post('/update-record', async (req, res) => {
     }
 
     console.log('🔍 Updated records count:', updatedRecords.length);
-    console.log('🔍 All records to set:', JSON.stringify(updatedRecords, null, 2));
+    console.log('🔍 Existing records count:', existingRecords.length);
+    console.log('🔍 Record being updated:', JSON.stringify(updatedRecord, null, 2));
+    console.log('🔍 All records to set (existing + updated):', JSON.stringify(updatedRecords, null, 2));
+    console.log('⚠️ WARNING: Using set_dns_zone which REPLACES all records. This is why we retrieved existing records first.');
 
-    // Set the entire zone with updated records
+    // Set the entire zone with updated records (this REPLACES all existing records)
+    console.log('🔧 Calling setDnsZone with', updatedRecords.length, 'total records');
     const result = await req.opensrsClient.setDnsZone(domain, updatedRecords);
     
     res.json({

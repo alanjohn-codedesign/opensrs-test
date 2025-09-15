@@ -25,11 +25,13 @@ const healthRoutes = require('./routes/health-routes');
 const domainRoutes = require('./routes/domain-routes');
 const registrationRoutes = require('./routes/registration-routes');
 const dnsRoutes = require('./routes/dns-routes');
+const nameserverRoutes = require('./routes/nameserver-routes');
 
 app.use('/', healthRoutes);
 app.use('/api/domains', domainRoutes);
 app.use('/api/registration', registrationRoutes);
 app.use('/api/dns', dnsRoutes);
+app.use('/api/nameservers', nameserverRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -58,6 +60,7 @@ app.listen(PORT, () => {
   console.log(`🔍 Domain search: http://localhost:${PORT}/api/domains/search`);
   console.log(`📝 Domain registration: http://localhost:${PORT}/api/registration/register`);
   console.log(`🌐 DNS management: http://localhost:${PORT}/api/dns/create-zone`);
+  console.log(`🖥️ Nameserver management: http://localhost:${PORT}/api/nameservers/update`);
   console.log(`📖 Test endpoints using test.http and test-registration.http files`);
 });
 

@@ -249,6 +249,100 @@ Content-Type: application/json
 }
 
 ### ========================================
+### NAMESERVER MANAGEMENT API TESTS
+### ========================================
+
+### 36. Update Domain Nameservers (Assign)
+POST http://localhost:3000/api/nameservers/update
+Content-Type: application/json
+
+{
+  "domain": "example.com",
+  "op_type": "assign",
+  "nameservers": ["ns1.example.com", "ns2.example.com"]
+}
+
+### 37. Update Domain Nameservers (Remove)
+POST http://localhost:3000/api/nameservers/update
+Content-Type: application/json
+
+{
+  "domain": "example.com",
+  "op_type": "remove",
+  "nameservers": ["ns1.example.com"]
+}
+
+### 38. Get Nameserver Information
+GET http://localhost:3000/api/nameservers/ns1.example.com
+
+### 39. Create Nameserver
+POST http://localhost:3000/api/nameservers/create
+Content-Type: application/json
+
+{
+  "nameserver": "ns1.example.com",
+  "ip_addresses": ["192.168.1.100", "192.168.1.101"]
+}
+
+### 40. Modify Nameserver
+PUT http://localhost:3000/api/nameservers/ns1.example.com
+Content-Type: application/json
+
+{
+  "ip_addresses": ["192.168.1.200", "192.168.1.201"]
+}
+
+### 41. Delete Nameserver
+DELETE http://localhost:3000/api/nameservers/ns1.example.com
+
+### 42. Registry Check Nameserver
+POST http://localhost:3000/api/nameservers/check
+Content-Type: application/json
+
+{
+  "nameserver": "ns1.example.com",
+  "tld": "com"
+}
+
+### 43. Registry Check Nameserver (All TLDs)
+POST http://localhost:3000/api/nameservers/check
+Content-Type: application/json
+
+{
+  "nameserver": "ns1.example.com"
+}
+
+### ========================================
+### ERROR TESTING FOR NAMESERVER APIs
+### ========================================
+
+### 44. Update nameservers with missing parameters
+POST http://localhost:3000/api/nameservers/update
+Content-Type: application/json
+
+{
+  "domain": "example.com"
+}
+
+### 45. Update nameservers with invalid op_type
+POST http://localhost:3000/api/nameservers/update
+Content-Type: application/json
+
+{
+  "domain": "example.com",
+  "op_type": "invalid",
+  "nameservers": ["ns1.example.com"]
+}
+
+### 46. Create nameserver with missing nameserver
+POST http://localhost:3000/api/nameservers/create
+Content-Type: application/json
+
+{
+  "ip_addresses": ["192.168.1.100"]
+}
+
+### ========================================
 ### DNS RECORD MANAGEMENT API TESTS
 ### ========================================
 
@@ -257,7 +351,7 @@ POST http://localhost:3000/api/dns/add-record
 Content-Type: application/json
 
 {
-  "domain": "example.com",
+  "domain": "testdomainalanjohnchacko.com",
   "record": {
     "type": "A",
     "host": "sub",
@@ -271,7 +365,7 @@ POST http://localhost:3000/api/dns/update-record
 Content-Type: application/json
 
 {
-  "domain": "example.com",
+  "domain": "testdomainalanjohnchacko.com",
   "record": {
     "type": "A",
     "host": "sub",

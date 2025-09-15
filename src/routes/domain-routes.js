@@ -288,6 +288,55 @@ router.put('/:domain/autorenew', async (req, res) => {
 });
 
 /**
+ * @route GET /api/domains/:domain/whois-privacy
+ * @desc Get domain WHOIS privacy state
+ * @access Public
+ */
+router.get('/:domain/whois-privacy', async (req, res) => {
+  try {
+    const { domain } = req.params;
+
+    console.log(`🔍 Getting WHOIS privacy state for domain: ${domain}`);
+
+    // Use the get domain info to retrieve current WHOIS privacy state
+    const result = await opensrsClient.getDomain(domain);
+
+    if (!result.success) {
+      return res.status(500).json({
+        success: false,
+        error: result.error,
+        message: 'Failed to get domain WHOIS privacy state',
+        responseCode: result.responseCode,
+        responseText: result.responseText
+      });
+    }
+
+    // Extract WHOIS privacy state from the response
+    let whoisPrivacyState = 'unknown';
+    if (result.data && result.data.whois_privacy !== undefined) {
+      whoisPrivacyState = result.data.whois_privacy ? 'enabled' : 'disabled';
+    }
+
+    res.json({
+      success: true,
+      domain: domain,
+      whoisPrivacyState: whoisPrivacyState,
+      responseCode: result.responseCode,
+      responseText: result.responseText,
+      data: result.data
+    });
+
+  } catch (error) {
+    console.error('Domain WHOIS privacy retrieval error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+      message: error.message
+    });
+  }
+});
+
+/**
  * @route PUT /api/domains/:domain/whois-privacy
  * @desc Modify domain WHOIS privacy state
  * @access Public

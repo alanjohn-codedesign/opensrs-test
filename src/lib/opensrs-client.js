@@ -10,6 +10,12 @@ const createDnsZoneTemplate = require('./xml-templates/create-dns-zone');
 const getDnsZoneTemplate = require('./xml-templates/get-dns-zone');
 const setDnsZoneTemplate = require('./xml-templates/set-dns-zone');
 const deleteDnsZoneTemplate = require('./xml-templates/delete-dns-zone');
+const advancedUpdateNameserversTemplate = require('./xml-templates/advanced-update-nameservers');
+const getNameserverTemplate = require('./xml-templates/get-nameserver');
+const createNameserverTemplate = require('./xml-templates/create-nameserver');
+const deleteNameserverTemplate = require('./xml-templates/delete-nameserver');
+const modifyNameserverTemplate = require('./xml-templates/modify-nameserver');
+const registryCheckNameserverTemplate = require('./xml-templates/registry-check-nameserver');
 
 class OpenSRSClient {
   constructor(config = {}) {
@@ -422,6 +428,24 @@ class OpenSRSClient {
   }
 
   /**
+   * Get domain information
+   */
+  async getDomain(domain) {
+    try {
+      console.log('🔧 Getting domain info for:', domain);
+      
+      const getDomainXml = require('./xml-templates/get-domain')(domain);
+      const result = await this.makeRequest(getDomainXml);
+      
+      console.log('✅ Domain info result:', result);
+      return result;
+    } catch (error) {
+      console.error('❌ Domain info retrieval failed:', error.message);
+      throw error;
+    }
+  }
+
+  /**
    * Get name suggestions function
    */
   async getNameSuggestions(searchString) {
@@ -737,6 +761,121 @@ class OpenSRSClient {
       return result;
     } catch (error) {
       console.error('❌ DNS zone deletion failed:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Advanced update nameservers for domain
+   */
+  async advancedUpdateNameservers(domain, opType, nameservers) {
+    try {
+      console.log('🔧 Advanced update nameservers for:', domain);
+      console.log('🔧 Operation type:', opType);
+      console.log('🔧 Nameservers:', nameservers);
+      
+      const xml = advancedUpdateNameserversTemplate({ domain, op_type: opType, nameservers });
+      console.log('🔍 Generated XML for nameserver update:', xml);
+      
+      const result = await this.makeRequest(xml);
+      
+      console.log('✅ Nameserver update result:', result);
+      return result;
+    } catch (error) {
+      console.error('❌ Nameserver update failed:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Get nameserver information
+   */
+  async getNameserver(nameserver) {
+    try {
+      console.log('🔧 Getting nameserver info for:', nameserver);
+      
+      const xml = getNameserverTemplate({ nameserver });
+      const result = await this.makeRequest(xml);
+      
+      console.log('✅ Nameserver info result:', result);
+      return result;
+    } catch (error) {
+      console.error('❌ Nameserver info retrieval failed:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Create nameserver
+   */
+  async createNameserver(nameserver, ipAddresses = []) {
+    try {
+      console.log('🔧 Creating nameserver:', nameserver);
+      console.log('🔧 IP addresses:', ipAddresses);
+      
+      const xml = createNameserverTemplate({ nameserver, ip_addresses: ipAddresses });
+      const result = await this.makeRequest(xml);
+      
+      console.log('✅ Nameserver creation result:', result);
+      return result;
+    } catch (error) {
+      console.error('❌ Nameserver creation failed:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete nameserver
+   */
+  async deleteNameserver(nameserver) {
+    try {
+      console.log('🔧 Deleting nameserver:', nameserver);
+      
+      const xml = deleteNameserverTemplate({ nameserver });
+      const result = await this.makeRequest(xml);
+      
+      console.log('✅ Nameserver deletion result:', result);
+      return result;
+    } catch (error) {
+      console.error('❌ Nameserver deletion failed:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Modify nameserver
+   */
+  async modifyNameserver(nameserver, ipAddresses = []) {
+    try {
+      console.log('🔧 Modifying nameserver:', nameserver);
+      console.log('🔧 New IP addresses:', ipAddresses);
+      
+      const xml = modifyNameserverTemplate({ nameserver, ip_addresses: ipAddresses });
+      const result = await this.makeRequest(xml);
+      
+      console.log('✅ Nameserver modification result:', result);
+      return result;
+    } catch (error) {
+      console.error('❌ Nameserver modification failed:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Registry check nameserver
+   */
+  async registryCheckNameserver(nameserver, tld = null) {
+    try {
+      console.log('🔧 Registry check nameserver:', nameserver);
+      console.log('🔧 TLD:', tld);
+      
+      const xml = registryCheckNameserverTemplate({ nameserver, tld });
+      const result = await this.makeRequest(xml);
+      
+      console.log('✅ Registry check result:', result);
+      return result;
+    } catch (error) {
+      console.error('❌ Registry check failed:', error.message);
       throw error;
     }
   }
