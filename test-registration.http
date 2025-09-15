@@ -1,0 +1,428 @@
+### OpenSRS Domain Registration & DNS Management Tests
+### Make sure your server is running on http://localhost:3000
+### Update environment variables in .env file before testing
+
+###############################################
+# 🏥 HEALTH CHECK
+###############################################
+
+### Health Check
+GET http://localhost:3000/health
+
+###############################################
+# 📝 DOMAIN REGISTRATION
+###############################################
+
+### 1. Register New Domain (.com)
+POST http://localhost:3000/api/registration/register
+Content-Type: application/json
+
+{
+  "domain": "testdomain12345.com",
+  "handle": "save",
+  "autoRenew": false,
+  "regUsername": "testuser123",
+  "regPassword": "testpass123",
+  "nameservers": [
+    "ns1.example.com",
+    "ns2.example.com"
+  ],
+  "contactSet": {
+    "owner": {
+      "firstName": "John",
+      "lastName": "Doe",
+      "orgName": "Test Organization",
+      "address1": "123 Main Street",
+      "address2": "Suite 100",
+      "city": "New York",
+      "state": "NY",
+      "country": "US",
+      "postalCode": "10001",
+      "phone": "+1.2125551234",
+      "email": "john.doe@example.com"
+    },
+    "admin": {
+      "firstName": "Jane",
+      "lastName": "Smith",
+      "orgName": "Test Organization",
+      "address1": "123 Main Street",
+      "city": "New York",
+      "state": "NY",
+      "country": "US",
+      "postalCode": "10001",
+      "phone": "+1.2125551235",
+      "email": "jane.smith@example.com"
+    },
+    "tech": {
+      "firstName": "Tech",
+      "lastName": "Support",
+      "orgName": "Test Organization",
+      "address1": "123 Main Street",
+      "city": "New York",
+      "state": "NY",
+      "country": "US",
+      "postalCode": "10001",
+      "phone": "+1.2125551236",
+      "email": "tech@example.com"
+    },
+    "billing": {
+      "firstName": "Billing",
+      "lastName": "Department",
+      "orgName": "Test Organization",
+      "address1": "123 Main Street",
+      "city": "New York",
+      "state": "NY",
+      "country": "US",
+      "postalCode": "10001",
+      "phone": "+1.2125551237",
+      "email": "billing@example.com"
+    }
+  },
+  "affiliateId": "test-affiliate-123"
+}
+
+### 2. Register Domain with TLD-specific data (.ca example)
+POST http://localhost:3000/api/registration/register
+Content-Type: application/json
+
+{
+  "domain": "testcanadian123.ca",
+  "handle": "process",
+  "autoRenew": true,
+  "regUsername": "testuser123",
+  "regPassword": "testpass123",
+  "contactSet": {
+    "owner": {
+      "firstName": "Canadian",
+      "lastName": "User",
+      "orgName": "Canadian Company Ltd",
+      "address1": "456 Maple Street",
+      "city": "Toronto",
+      "state": "ON",
+      "country": "CA",
+      "postalCode": "M5V 3A1",
+      "phone": "+1.4165551234",
+      "email": "canadian.user@example.ca"
+    }
+  },
+  "customTldData": {
+    "legal_type": "CCO",
+    "registrant_extra_info": {
+      "cpr": "CCO"
+    }
+  }
+}
+
+###############################################
+# 🔧 DOMAIN MODIFICATION
+###############################################
+
+### 3. Modify Domain Nameservers
+POST http://localhost:3000/api/registration/modify
+Content-Type: application/json
+
+{
+  "domain": "testdomain12345.com",
+  "modificationType": "nameserver_list",
+  "nameservers": [
+    "ns1.newhost.com",
+    "ns2.newhost.com",
+    "ns3.newhost.com"
+  ]
+}
+
+### 4. Enable Auto-Renewal
+POST http://localhost:3000/api/registration/modify
+Content-Type: application/json
+
+{
+  "domain": "testdomain12345.com",
+  "modificationType": "auto_renew",
+  "autoRenew": true
+}
+
+### 5. Disable Auto-Renewal
+POST http://localhost:3000/api/registration/modify
+Content-Type: application/json
+
+{
+  "domain": "testdomain12345.com",
+  "modificationType": "auto_renew",
+  "autoRenew": false
+}
+
+### 6. Update Contact Information
+POST http://localhost:3000/api/registration/modify
+Content-Type: application/json
+
+{
+  "domain": "testdomain12345.com",
+  "modificationType": "contact_info",
+  "contactSet": {
+    "owner": {
+      "firstName": "John Updated",
+      "lastName": "Doe Updated",
+      "orgName": "Updated Organization",
+      "address1": "789 Updated Street",
+      "city": "Los Angeles",
+      "state": "CA",
+      "country": "US",
+      "postalCode": "90210",
+      "phone": "+1.3105551234",
+      "email": "john.updated@example.com"
+    }
+  }
+}
+
+### 7. Lock Domain
+POST http://localhost:3000/api/registration/modify
+Content-Type: application/json
+
+{
+  "domain": "testdomain12345.com",
+  "modificationType": "locking",
+  "lockState": true
+}
+
+### 8. Unlock Domain
+POST http://localhost:3000/api/registration/modify
+Content-Type: application/json
+
+{
+  "domain": "testdomain12345.com",
+  "modificationType": "locking",
+  "lockState": false
+}
+
+###############################################
+# 🌐 DNS ZONE MANAGEMENT
+###############################################
+
+### 9. Create DNS Zone with Initial Records
+POST http://localhost:3000/api/dns/create-zone
+Content-Type: application/json
+
+{
+  "domain": "testdomain12345.com",
+  "records": [
+    {
+      "subdomain": "",
+      "type": "A",
+      "address": "192.168.1.100",
+      "ttl": 300
+    },
+    {
+      "subdomain": "www",
+      "type": "A",
+      "address": "192.168.1.100",
+      "ttl": 300
+    },
+    {
+      "subdomain": "",
+      "type": "MX",
+      "address": "mail.testdomain12345.com",
+      "ttl": 300,
+      "priority": 10
+    },
+    {
+      "subdomain": "mail",
+      "type": "A",
+      "address": "192.168.1.101",
+      "ttl": 300
+    }
+  ]
+}
+
+### 10. Get DNS Zone Records
+GET http://localhost:3000/api/dns/get-zone/testdomain12345.com
+
+### 11. Set/Update DNS Zone Records (Replace All)
+POST http://localhost:3000/api/dns/set-zone
+Content-Type: application/json
+
+{
+  "domain": "testdomain12345.com",
+  "records": [
+    {
+      "subdomain": "",
+      "type": "A",
+      "address": "192.168.1.200",
+      "ttl": 600
+    },
+    {
+      "subdomain": "www",
+      "type": "CNAME",
+      "address": "testdomain12345.com",
+      "ttl": 600
+    },
+    {
+      "subdomain": "api",
+      "type": "A",
+      "address": "192.168.1.201",
+      "ttl": 300
+    },
+    {
+      "subdomain": "",
+      "type": "MX",
+      "address": "mail.testdomain12345.com",
+      "ttl": 300,
+      "priority": 10
+    },
+    {
+      "subdomain": "",
+      "type": "TXT",
+      "address": "v=spf1 include:_spf.google.com ~all",
+      "ttl": 300
+    }
+  ]
+}
+
+### 12. Add Single DNS Record
+POST http://localhost:3000/api/dns/add-record
+Content-Type: application/json
+
+{
+  "domain": "testdomain12345.com",
+  "record": {
+    "subdomain": "blog",
+    "type": "A",
+    "address": "192.168.1.202",
+    "ttl": 300
+  }
+}
+
+### 13. Add CNAME Record
+POST http://localhost:3000/api/dns/add-record
+Content-Type: application/json
+
+{
+  "domain": "testdomain12345.com",
+  "record": {
+    "subdomain": "shop",
+    "type": "CNAME",
+    "address": "shopify.myshopify.com",
+    "ttl": 300
+  }
+}
+
+### 14. Add TXT Record for Domain Verification
+POST http://localhost:3000/api/dns/add-record
+Content-Type: application/json
+
+{
+  "domain": "testdomain12345.com",
+  "record": {
+    "subdomain": "_verification",
+    "type": "TXT",
+    "address": "google-site-verification=abcdef123456",
+    "ttl": 300
+  }
+}
+
+### 15. Get Updated DNS Zone Records
+GET http://localhost:3000/api/dns/get-zone/testdomain12345.com
+
+### 16. Delete DNS Zone
+DELETE http://localhost:3000/api/dns/delete-zone/testdomain12345.com
+
+###############################################
+# 🔍 DOMAIN SEARCH (Existing Functionality)
+###############################################
+
+### 17. Search for Available Domains
+POST http://localhost:3000/api/domains/search
+Content-Type: application/json
+
+{
+  "searchQuery": "testregistration"
+}
+
+### 18. Check Single Domain Availability
+POST http://localhost:3000/api/domains/lookup
+Content-Type: application/json
+
+{
+  "domain": "testregistration.com"
+}
+
+### 19. Get Domain Price
+GET http://localhost:3000/api/domains/testregistration.com/price
+
+### 20. Get Domain Suggestions
+POST http://localhost:3000/api/domains/suggestions
+Content-Type: application/json
+
+{
+  "searchString": "testregistration"
+}
+
+###############################################
+# 📊 CACHE MANAGEMENT
+###############################################
+
+### 21. Get Cache Statistics
+GET http://localhost:3000/api/domains/cache/stats
+
+### 22. Clear Expired Cache
+POST http://localhost:3000/api/domains/cache/clear
+
+###############################################
+# 🧪 EDGE CASES & ERROR HANDLING
+###############################################
+
+### 23. Try to Register Invalid Domain
+POST http://localhost:3000/api/registration/register
+Content-Type: application/json
+
+{
+  "domain": "invalid..domain..com",
+  "regUsername": "test",
+  "regPassword": "test"
+}
+
+### 24. Try to Modify Non-existent Domain
+POST http://localhost:3000/api/registration/modify
+Content-Type: application/json
+
+{
+  "domain": "nonexistentdomain12345.com",
+  "modificationType": "auto_renew",
+  "autoRenew": true
+}
+
+### 25. Try to Create DNS Zone with Invalid Records
+POST http://localhost:3000/api/dns/create-zone
+Content-Type: application/json
+
+{
+  "domain": "testdomain12345.com",
+  "records": [
+    {
+      "subdomain": "invalid",
+      "type": "INVALID_TYPE",
+      "address": ""
+    }
+  ]
+}
+
+###############################################
+# 📋 NOTES
+###############################################
+
+# 1. Make sure to update your .env file with valid OpenSRS credentials
+# 2. Use handle: "save" for testing to avoid actual registration charges
+# 3. Use handle: "process" for actual domain registration
+# 4. Replace test domains with actual available domains for real testing
+# 5. DNS operations may take time to propagate
+# 6. Some operations may require the domain to be registered first
+
+###############################################
+# 🔧 ENVIRONMENT VARIABLES NEEDED
+###############################################
+
+# OPENSRS_RESELLER_USERNAME=your_reseller_username
+# OPENSRS_API_KEY=your_api_key
+# OPENSRS_TEST_MODE=true
+# OPENSRS_TEST_HOST=https://horizon.opensrs.net:55443
+# OPENSRS_LIVE_HOST=https://rr-n1-tor.opensrs.net:55443
+# PORT=3000

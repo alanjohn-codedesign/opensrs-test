@@ -1,6 +1,15 @@
 // opensrs-client.js
 const axios = require('axios');
 const crypto = require('crypto');
+const CacheManager = require('./cache-manager');
+
+// Import XML templates
+const registerDomainTemplate = require('./xml-templates/register-domain');
+const modifyDomainTemplate = require('./xml-templates/modify-domain');
+const createDnsZoneTemplate = require('./xml-templates/create-dns-zone');
+const getDnsZoneTemplate = require('./xml-templates/get-dns-zone');
+const setDnsZoneTemplate = require('./xml-templates/set-dns-zone');
+const deleteDnsZoneTemplate = require('./xml-templates/delete-dns-zone');
 
 class OpenSRSClient {
   constructor(config = {}) {
@@ -15,94 +24,61 @@ class OpenSRSClient {
       this.apiHost = config.liveHost || process.env.OPENSRS_LIVE_HOST || 'https://rr-n1-tor.opensrs.net:55443';
     }
 
+    console.log('🔧 OpenSRS Client Configuration:');
+    console.log('  Test Mode:', this.testMode);
+    console.log('  API Host:', this.apiHost);
+    console.log('  Reseller Username:', this.resellerUsername ? 'Set' : 'Missing');
+    console.log('  API Key:', this.apiKey ? 'Set' : 'Missing');
+
     if (!this.resellerUsername || !this.apiKey) {
-      throw new Error('OpenSRS reseller username and API key are required');
+      throw new Error('OpenSRS reseller username and API key are required. Please set OPENSRS_RESELLER_USERNAME and OPENSRS_API_KEY environment variables.');
     }
+
+    // Initialize cache manager
+    this.cache = new CacheManager();
+    
+    // Clean expired cache entries every 10 minutes
+    setInterval(() => {
+      this.cache.clearExpired();
+    }, 10 * 60 * 1000);
   }
 
   /**
    * Generate MD5 signature for OpenSRS API authentication
-   * @param {string} xml - The XML request body
-   * @returns {string} - The generated signature
-   * 
    */
   generateSignature(xml) {
-    // First MD5 hash: MD5(xml + api_key)
     const firstHash = crypto.createHash('md5').update(xml + this.apiKey).digest('hex');
-    // Second MD5 hash: MD5(first_hash + api_key)
     const signature = crypto.createHash('md5').update(firstHash + this.apiKey).digest('hex');
     return signature;
   }
 
   /**
-   * Create XML envelope for OpenSRS API requests
-   * @param {string} action - The API action (e.g., 'LOOKUP', 'REGISTER')
-   * @param {string} object - The object type (e.g., 'DOMAIN')
-   * @param {Object} attributes - The attributes for the request
-   * @returns {string} - The formatted XML
+   * Test API connectivity with a simple request
    */
-  createXmlEnvelope(action, object, attributes = {}) {
-    const attributesXml = this.objectToXml(attributes);
-    return `<?xml version='1.0' encoding='UTF-8' standalone='no' ?>
-<!DOCTYPE OPS_envelope SYSTEM 'ops.dtd'>
-<OPS_envelope>
-<header>
-    <version>0.9</version>
-</header>
-<body>
-<data_block>
-    <dt_assoc>
-        <item key="protocol">XCP</item>
-        <item key="action">${action}</item>
-        <item key="object">${object}</item>
-        <item key="attributes">
-            ${attributesXml}
-        </item>
-    </dt_assoc>
-</data_block>
-</body>
-</OPS_envelope>`;
-  }
-
-  /**
-   * Convert JavaScript object to OpenSRS XML format
-   * @param {Object} obj - The object to convert
-   * @returns {string} - The XML representation
-   */
-  objectToXml(obj) {
-    if (typeof obj !== 'object' || obj === null) {
-      return `<item>${obj}</item>`;
-    }
-
-    if (Array.isArray(obj)) {
-      return `<dt_array>${obj.map((item, index) => `<item key="${index}">${item}</item>`).join('')}</dt_array>`;
-    }
-
-    const keys = Object.keys(obj);
-    const isArray = keys.length > 0 && keys.every(key => /^\d+$/.test(key));
-
-    const items = Object.entries(obj).map(([key, value]) => {
-      if (typeof value === 'object' && value !== null) {
-        return `<item key="${key}">${this.objectToXml(value)}</item>`;
-      } else {
-        return `<item key="${key}">${value}</item>`;
-      }
-    }).join('');
-
-    const tag = isArray ? 'dt_array' : 'dt_assoc';
-    return `<${tag}>${items}</${tag}>`;
-  }
-
-  /**
-   * Make a request to the OpenSRS API
-   * @param {string} action - The API action
-   * @param {string} object - The object type
-   * @param {Object} attributes - The request attributes
-   * @returns {Promise<Object>} - The API response
-   */
-  async makeRequest(action, object, attributes = {}) {
+  async testConnectivity() {
     try {
-      const xml = this.createXmlEnvelope(action, object, attributes);
+      console.log('🔍 Testing OpenSRS API connectivity...');
+      
+      // Use a simple lookup request to test connectivity
+      const testXml = require('./xml-templates/lookup-domain')('example.com');
+      const result = await this.makeRequest(testXml, 5000); // 5 second timeout for test
+      
+      console.log('✅ API connectivity test result:', result);
+      return result;
+    } catch (error) {
+      console.error('❌ API connectivity test failed:', error.message);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * Make request to OpenSRS API with timeout
+   */
+  async makeRequest(xml, timeout = 10000) {
+    try {
       const signature = this.generateSignature(xml);
 
       const headers = {
@@ -111,840 +87,660 @@ class OpenSRSClient {
         'X-Signature': signature
       };
 
-      console.log(`Making ${action} request to OpenSRS API...`);
-      console.log('Request URL:', this.apiHost);
-      console.log('Username:', this.resellerUsername);
-      console.log('Signature length:', signature.length);
+      console.log('Making request to OpenSRS API...');
+      console.log('API Host:', this.apiHost);
+      console.log('Timeout:', timeout + 'ms');
       console.log('Request XML:', xml);
 
-      const response = await axios.post(this.apiHost, xml, { headers });
-
-      console.log('Response status:', response.status);
-      console.log('Response headers:', response.headers);
-      console.log('Response data:', response.data);
-
-      const jsonResponse = this.parseXmlResponse(response.data);
-      console.log('JSON response:', JSON.stringify(jsonResponse, null, 2));
-      return jsonResponse;
-    } catch (error) {
-      console.error('OpenSRS API request failed:', error.message);
-      console.error('Error details:', {
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        headers: error.response?.headers,
-        data: error.response?.data,
-        config: {
-          url: error.config?.url,
-          method: error.config?.method,
-          headers: error.config?.headers
-        }
+      const response = await axios.post(this.apiHost, xml, { 
+        headers,
+        timeout: timeout // Add timeout to prevent hanging requests
       });
 
+      console.log('Response status:', response.status);
+      console.log('Response data:', response.data);
+
+      return this.parseXmlResponse(response.data);
+    } catch (error) {
+      console.error('OpenSRS API request failed:', error.message);
+      if (error.code === 'ECONNABORTED') {
+        return {
+          success: false,
+          error: 'Request timeout',
+          data: null
+        };
+      }
       return {
         success: false,
-        error: error.message,
-        responseCode: error.response?.status?.toString() || 'NETWORK_ERROR',
-        responseText: error.response?.statusText || 'Network or connection error',
-        statusCode: error.response?.status,
-        statusText: error.response?.statusText,
-        timestamp: new Date().toISOString(),
-        data: {}
+        error: error.response?.data || error.message,
+        data: null
       };
     }
   }
 
-  // =========================
-  // XML PARSING (ROBUST)
-  // =========================
-
   /**
-   * Balanced slice for nested tags. Returns substring including outer tags.
-   */
-  balancedSlice(xml, startIdx, openTag, closeTag) {
-    let i = startIdx;
-    let depth = 0;
-    const openLen = openTag.length;
-    const closeLen = closeTag.length;
-
-    if (xml.substring(i, i + openLen) !== openTag) return null;
-
-    while (i < xml.length) {
-      if (xml.substring(i, i + openLen) === openTag) { depth++; i += openLen; continue; }
-      if (xml.substring(i, i + closeLen) === closeTag) {
-        depth--; i += closeLen;
-        if (depth === 0) {
-          return xml.substring(startIdx, i);
-        }
-        continue;
-      }
-      i++;
-    }
-    return null;
-  }
-
-  /**
-   * Extract an <item key="X"> ... </item> block with nesting awareness.
-   * Returns the full string including the outer <item ...> and </item>.
-   */
-  extractItemBlock(xml, itemKey, fromIndex = 0) {
-    const startTag = `<item key="${itemKey}">`;
-    const start = xml.indexOf(startTag, fromIndex);
-    if (start === -1) return null;
-
-    let i = start + startTag.length;
-    let depth = 1; // we're inside the outer <item ...>
-    while (i < xml.length) {
-      if (xml.startsWith('<item', i)) { depth++; i += 5; continue; }
-      if (xml.startsWith('</item>', i)) {
-        depth--; i += 7;
-        if (depth === 0) {
-          return xml.substring(start, i);
-        }
-        continue;
-      }
-      i++;
-    }
-    return null;
-  }
-
-  /**
-   * Extract value from XML using regex (tolerant of whitespace).
-   */
-  extractXmlValue(xml, key) {
-    const re = new RegExp(`<item\\s+key="${key}">\\s*([^<]+?)\\s*<\\/item>`, 'i');
-    const m = xml.match(re);
-    return m ? m[1] : null;
-  }
-
-  /**
-   * Parse XML response from OpenSRS API and convert to JSON
-   * @param {string} xmlString - The XML response string
-   * @returns {Object} - The parsed JSON response object
+   * Parse XML response from OpenSRS
    */
   parseXmlResponse(xmlString) {
     try {
-      console.log('Parsing XML response to JSON...');
-      console.log('Raw XML response:', xmlString);
+      console.log('🔍 Parsing XML response...');
+      console.log('Raw XML response:', xmlString.substring(0, 500) + (xmlString.length > 500 ? '...' : ''));
+      
+      // Basic validation
+      if (!xmlString || typeof xmlString !== 'string') {
+        throw new Error('Invalid XML response: response is not a string');
+      }
+      
+      if (!xmlString.includes('<OPS_envelope>')) {
+        throw new Error('Invalid XML response: missing OPS_envelope structure');
+      }
+      
+      // Extract response code
+      const responseCodeMatch = xmlString.match(/<item key="response_code">(\d+)<\/item>/);
+      const responseCode = responseCodeMatch ? responseCodeMatch[1] : null;
+      
+      // Extract response text - improved regex to handle encoded characters
+      const responseTextMatch = xmlString.match(/<item key="response_text">([^<]*(?:<[^>]*>[^<]*)*)<\/item>/);
+      const responseText = responseTextMatch ? responseTextMatch[1].replace(/&apos;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&') : null;
+      
+      // Extract success status
+      const successMatch = xmlString.match(/<item key="is_success">([01])<\/item>/);
+      const isSuccess = successMatch ? successMatch[1] === '1' : false;
 
-      const responseCode = this.extractXmlValue(xmlString, 'response_code');
-      const responseText = this.extractXmlValue(xmlString, 'response_text');
-      const isSuccess = responseCode === '200' || responseCode === '210';
+      // Extract attributes section
+      const attributesMatch = xmlString.match(/<item key="attributes">\s*<dt_assoc>(.*?)<\/dt_assoc>\s*<\/item>/s);
+      let attributes = {};
+      
+      if (attributesMatch) {
+        const attributesContent = attributesMatch[1];
+        
+        // Extract status (for domain lookup)
+        const statusMatch = attributesContent.match(/<item key="status">([^<]+)<\/item>/);
+        if (statusMatch) attributes.status = statusMatch[1];
+        
+        // Extract price (for pricing requests) - try multiple formats
+        const priceMatch = attributesContent.match(/<item key="price">([^<]+)<\/item>/);
+        const costMatch = attributesContent.match(/<item key="cost">([^<]+)<\/item>/);
+        const amountMatch = attributesContent.match(/<item key="amount">([^<]+)<\/item>/);
+        
+        if (priceMatch && priceMatch[1] !== 'undef') {
+          attributes.price = parseFloat(priceMatch[1]);
+        } else if (costMatch && costMatch[1] !== 'undef') {
+          attributes.price = parseFloat(costMatch[1]);
+        } else if (amountMatch && amountMatch[1] !== 'undef') {
+          attributes.price = parseFloat(amountMatch[1]);
+        }
+        
+        // Extract currency (for pricing requests)
+        const currencyMatch = attributesContent.match(/<item key="currency">([^<]+)<\/item>/);
+        if (currencyMatch && currencyMatch[1] !== 'undef') {
+          attributes.currency = currencyMatch[1];
+        } else {
+          // Default currency if not specified
+          attributes.currency = 'USD';
+        }
+        
+        // Extract additional registration/modification response data
+        const idMatch = attributesContent.match(/<item key="id">([^<]+)<\/item>/);
+        if (idMatch) attributes.id = idMatch[1];
+        
+        const registrationTextMatch = attributesContent.match(/<item key="registration_text">([^<]+)<\/item>/);
+        if (registrationTextMatch) attributes.registrationText = registrationTextMatch[1];
+        
+        const adminEmailMatch = attributesContent.match(/<item key="admin_email">([^<]+)<\/item>/);
+        if (adminEmailMatch) attributes.adminEmail = adminEmailMatch[1];
+        
+        const transferIdMatch = attributesContent.match(/<item key="transfer_id">([^<]+)<\/item>/);
+        if (transferIdMatch) attributes.transferId = transferIdMatch[1];
+        
+        // Extract DNS zone data
+        const recordsMatch = attributesContent.match(/<item key="records">\s*<dt_array>(.*?)<\/dt_array>\s*<\/item>/s);
+        if (recordsMatch) {
+          attributes.records = this.parseDnsRecords(recordsMatch[1]);
+        }
+        
+        // Extract suggestions data (for NAME_SUGGEST requests)
+        this.parseSuggestionsData(attributesContent, attributes);
+      }
 
-      const result = {
+      console.log('✅ Parsed response:', { responseCode, responseText, isSuccess, attributes });
+
+      return {
         success: isSuccess,
         responseCode,
         responseText,
-        timestamp: new Date().toISOString(),
-        requestId: this.extractXmlValue(xmlString, 'request_id') || null
+        data: attributes
       };
-
-      // Find <item key="attributes"><dt_assoc> ... </dt_assoc></item>
-      const attributesStart = xmlString.indexOf('<item key="attributes">');
-      if (attributesStart !== -1) {
-        const assocStart = xmlString.indexOf('<dt_assoc>', attributesStart);
-        if (assocStart !== -1) {
-          const assocBlock = this.balancedSlice(xmlString, assocStart, '<dt_assoc>', '</dt_assoc>');
-          if (assocBlock) {
-            const inner = assocBlock.slice('<dt_assoc>'.length, -'</dt_assoc>'.length);
-            result.data = this.parseAttributes(inner);
-
-            if (result.data.suggestion) {
-              result.suggestions = this.parseSuggestions(result.data.suggestion);
-            }
-            if (result.data.lookup) {
-              result.lookups = this.parseLookups(result.data.lookup);
-            }
-            if (result.data.premium) {
-              result.premium = this.parseSuggestions(result.data.premium);
-            }
-            if (result.data.personal_names) {
-              result.personalNames = this.parseSuggestions(result.data.personal_names);
-            }
-            if (result.data.is_search_completed !== undefined) {
-              result.isSearchCompleted = result.data.is_search_completed === '1';
-            }
-            if (result.data.request_response_time) {
-              const n = Number(result.data.request_response_time);
-              if (!Number.isNaN(n)) result.responseTime = n;
-            }
-          }
-        }
-      } else {
-        // Try alternative XML structure for registration responses
-        console.log('No attributes section found, trying alternative parsing...');
-        
-        // Look for data in <item key="data"> or similar structures
-        const dataStart = xmlString.indexOf('<item key="data">');
-        if (dataStart !== -1) {
-          const dataAssocStart = xmlString.indexOf('<dt_assoc>', dataStart);
-          if (dataAssocStart !== -1) {
-            const dataAssocBlock = this.balancedSlice(xmlString, dataAssocStart, '<dt_assoc>', '</dt_assoc>');
-            if (dataAssocBlock) {
-              const inner = dataAssocBlock.slice('<dt_assoc>'.length, -'</dt_assoc>'.length);
-              result.data = this.parseAttributes(inner);
-            }
-          }
-        }
-        
-        // Also try to extract data directly from the main dt_assoc structure
-        // This is common for registration responses where data is at the root level
-        const mainAssocStart = xmlString.indexOf('<dt_assoc>');
-        if (mainAssocStart !== -1 && !result.data) {
-          console.log('Trying to parse main dt_assoc structure...');
-          const mainAssocBlock = this.balancedSlice(xmlString, mainAssocStart, '<dt_assoc>', '</dt_assoc>');
-          if (mainAssocBlock) {
-            const inner = mainAssocBlock.slice('<dt_assoc>'.length, -'</dt_assoc>'.length);
-            result.data = this.parseAttributes(inner);
-          }
-        }
-      }
-
-      if (!result.data) {
-        // For registration and other operations, look for data in different XML structure
-        // Based on OpenSRS documentation, registration responses typically include:
-        const orderId = this.extractXmlValue(xmlString, 'order_id') || this.extractXmlValue(xmlString, 'orderId') || this.extractXmlValue(xmlString, 'id');
-        const status = this.extractXmlValue(xmlString, 'status');
-        const expiryDate = this.extractXmlValue(xmlString, 'expiry_date');
-        const creationDate = this.extractXmlValue(xmlString, 'creation_date');
-        const registrantEmail = this.extractXmlValue(xmlString, 'registrant_email');
-        const adminEmail = this.extractXmlValue(xmlString, 'admin_email');
-        const transferId = this.extractXmlValue(xmlString, 'transfer_id');
-        const registrationText = this.extractXmlValue(xmlString, 'registration_text');
-        const registrationCode = this.extractXmlValue(xmlString, 'registration_code');
-        
-        result.data = {};
-        
-        // Add order information if present
-        if (orderId) result.data.order_id = orderId;
-        if (status) result.data.status = status;
-        if (expiryDate) result.data.expiry_date = expiryDate;
-        if (creationDate) result.data.creation_date = creationDate;
-        if (registrantEmail) result.data.registrant_email = registrantEmail;
-        if (adminEmail) result.data.admin_email = adminEmail;
-        if (transferId) result.data.transfer_id = transferId;
-        if (registrationText) result.data.registration_text = registrationText;
-        if (registrationCode) result.data.registration_code = registrationCode;
-        
-        // Add other common fields
-        const autoRenew = this.extractXmlValue(xmlString, 'auto_renew');
-        if (autoRenew) result.data.auto_renew = autoRenew === '1';
-        
-        const whoisPrivacy = this.extractXmlValue(xmlString, 'whois_privacy');
-        if (whoisPrivacy) result.data.whois_privacy = whoisPrivacy === '1';
-        
-        // Add nameserver information
-        const nameservers = this.extractXmlValue(xmlString, 'nameservers');
-        if (nameservers) result.data.nameservers = nameservers;
-        
-        // Add domain status information
-        const domainStatus = this.extractXmlValue(xmlString, 'domain_status');
-        if (domainStatus) result.data.domain_status = domainStatus;
-        
-        // Add registration period
-        const period = this.extractXmlValue(xmlString, 'period');
-        if (period) result.data.period = period;
-        
-        // Debug: Log all available XML values for troubleshooting
-        console.log('Available XML values:', {
-          orderId: this.extractXmlValue(xmlString, 'order_id'),
-          orderIdAlt: this.extractXmlValue(xmlString, 'orderId'),
-          id: this.extractXmlValue(xmlString, 'id'),
-          status: this.extractXmlValue(xmlString, 'status'),
-          expiryDate: this.extractXmlValue(xmlString, 'expiry_date'),
-          creationDate: this.extractXmlValue(xmlString, 'creation_date'),
-          registrantEmail: this.extractXmlValue(xmlString, 'registrant_email'),
-          adminEmail: this.extractXmlValue(xmlString, 'admin_email'),
-          transferId: this.extractXmlValue(xmlString, 'transfer_id'),
-          registrationText: this.extractXmlValue(xmlString, 'registration_text'),
-          registrationCode: this.extractXmlValue(xmlString, 'registration_code'),
-          autoRenew: this.extractXmlValue(xmlString, 'auto_renew'),
-          whoisPrivacy: this.extractXmlValue(xmlString, 'whois_privacy'),
-          nameservers: this.extractXmlValue(xmlString, 'nameservers'),
-          domainStatus: this.extractXmlValue(xmlString, 'domain_status'),
-          period: this.extractXmlValue(xmlString, 'period')
-        });
-        
-        // Also try to extract any other common fields that might be present
-        const allPossibleFields = [
-          'order_id', 'orderId', 'id', 'status', 'expiry_date', 'creation_date', 
-          'registrant_email', 'admin_email', 'transfer_id', 'registration_text', 
-          'registration_code', 'auto_renew', 'whois_privacy', 'nameservers', 
-          'domain_status', 'period', 'domain', 'handle', 'reg_type', 'reg_username'
-        ];
-        
-        console.log('All possible field extractions:');
-        allPossibleFields.forEach(field => {
-          const value = this.extractXmlValue(xmlString, field);
-          if (value) {
-            console.log(`  ${field}: ${value}`);
-          }
-        });
-        
-        // If no specific data found, add search completion fields for lookup operations
-        if (Object.keys(result.data).length === 0) {
-          result.data = {
-            is_search_completed: this.extractXmlValue(xmlString, 'is_search_completed'),
-            request_response_time: this.extractXmlValue(xmlString, 'request_response_time')
-          };
-        }
-      }
-
-      console.log('Parsed JSON response:', JSON.stringify(result, null, 2));
-      return result;
-
     } catch (error) {
-      console.error('Error parsing XML response:', error);
+      console.error('❌ Error parsing XML response:', error.message);
+      console.error('❌ Error stack:', error.stack);
+      console.error('❌ Raw XML (first 1000 chars):', xmlString?.substring(0, 1000));
+      
       return {
         success: false,
-        error: 'Failed to parse XML response',
-        responseCode: 'PARSE_ERROR',
-        responseText: error.message,
-        timestamp: new Date().toISOString(),
-        data: {}
+        error: `Failed to parse XML response: ${error.message}`,
+        rawResponse: xmlString?.substring(0, 500),
+        data: null
       };
     }
   }
 
   /**
-   * Parse attributes section from XML (inner of <dt_assoc>…</dt_assoc>)
+   * Parse DNS records from XML response (handles OpenSRS grouped structure)
    */
-  parseAttributes(attributesXml) {
-    const result = {};
-
-    console.log('Attributes XML length:', attributesXml.length);
-    console.log('Attributes XML preview:', attributesXml.substring(0, 500));
-
-    // Extract simple top-level items that are not nested dt_assoc/array
-    const simpleItems = attributesXml.match(/<item\s+key="([^"]+)">\s*([^<]+?)\s*<\/item>/g);
-    if (simpleItems) {
-      simpleItems.forEach(item => {
-        const match = item.match(/<item\s+key="([^"]+)">\s*([^<]+?)\s*<\/item>/);
-        if (match) result[match[1]] = match[2];
-      });
+  parseDnsRecords(recordsContent) {
+    try {
+      const records = [];
+      
+      // OpenSRS returns records grouped by type (A, MX, CNAME, etc.)
+      const typeMatches = recordsContent.match(/<item key="([A-Z]+)">\s*<dt_array>(.*?)<\/dt_array>\s*<\/item>/gs);
+      
+      if (typeMatches) {
+        typeMatches.forEach(typeMatch => {
+          // Extract the record type (A, MX, CNAME, etc.)
+          const typeKeyMatch = typeMatch.match(/<item key="([A-Z]+)">/);
+          if (!typeKeyMatch) return;
+          
+          const recordType = typeKeyMatch[1];
+          
+          // Extract the array content
+          const arrayContentMatch = typeMatch.match(/<dt_array>(.*?)<\/dt_array>/s);
+          if (!arrayContentMatch) return;
+          
+          const arrayContent = arrayContentMatch[1];
+          
+          // Parse individual records within this type
+          const recordMatches = arrayContent.match(/<item key="\d+">\s*<dt_assoc>(.*?)<\/dt_assoc>\s*<\/item>/gs);
+          
+          if (recordMatches) {
+            recordMatches.forEach(recordMatch => {
+              const record = { type: recordType };
+              
+              const subdomainMatch = recordMatch.match(/<item key="subdomain">([^<]*)<\/item>/);
+              if (subdomainMatch) record.subdomain = subdomainMatch[1];
+              
+              // Parse type-specific fields and convert to common format
+              switch (recordType) {
+                case 'A':
+                  const ipMatch = recordMatch.match(/<item key="ip_address">([^<]+)<\/item>/);
+                  if (ipMatch) record.address = ipMatch[1];
+                  break;
+                case 'AAAA':
+                  const ipv6Match = recordMatch.match(/<item key="ipv6_address">([^<]+)<\/item>/);
+                  if (ipv6Match) record.address = ipv6Match[1];
+                  break;
+                case 'CNAME':
+                case 'MX':
+                  const hostnameMatch = recordMatch.match(/<item key="hostname">([^<]+)<\/item>/);
+                  if (hostnameMatch) record.address = hostnameMatch[1];
+                  
+                  if (recordType === 'MX') {
+                    const priorityMatch = recordMatch.match(/<item key="priority">([^<]+)<\/item>/);
+                    if (priorityMatch) record.priority = parseInt(priorityMatch[1]);
+                  }
+                  break;
+                case 'TXT':
+                  const textMatch = recordMatch.match(/<item key="text">([^<]+)<\/item>/);
+                  if (textMatch) record.address = textMatch[1];
+                  break;
+                case 'SRV':
+                  const srvHostnameMatch = recordMatch.match(/<item key="hostname">([^<]+)<\/item>/);
+                  if (srvHostnameMatch) record.address = srvHostnameMatch[1];
+                  
+                  const srvPriorityMatch = recordMatch.match(/<item key="priority">([^<]+)<\/item>/);
+                  if (srvPriorityMatch) record.priority = parseInt(srvPriorityMatch[1]);
+                  
+                  const weightMatch = recordMatch.match(/<item key="weight">([^<]+)<\/item>/);
+                  if (weightMatch) record.weight = parseInt(weightMatch[1]);
+                  
+                  const portMatch = recordMatch.match(/<item key="port">([^<]+)<\/item>/);
+                  if (portMatch) record.port = parseInt(portMatch[1]);
+                  break;
+                default:
+                  // Fallback for unknown types
+                  const addressMatch = recordMatch.match(/<item key="address">([^<]+)<\/item>/);
+                  if (addressMatch) record.address = addressMatch[1];
+              }
+              
+              // Add optional TTL if present
+              const ttlMatch = recordMatch.match(/<item key="ttl">([^<]+)<\/item>/);
+              if (ttlMatch) record.ttl = parseInt(ttlMatch[1]);
+              
+              records.push(record);
+            });
+          }
+        });
+      }
+      
+      console.log('📋 Parsed DNS records:', records);
+      return records;
+    } catch (error) {
+      console.error('Error parsing DNS records:', error);
+      return [];
     }
-
-    // Parse known service sections with balanced extraction
-    const serviceSections = ['suggestion', 'lookup', 'premium', 'personal_names'];
-    serviceSections.forEach(service => {
-      const svcItem = this.extractItemBlock(attributesXml, service);
-      if (!svcItem) return;
-
-      const assocStart = svcItem.indexOf('<dt_assoc>');
-      if (assocStart === -1) return;
-
-      const assocBlock = this.balancedSlice(svcItem, assocStart, '<dt_assoc>', '</dt_assoc>');
-      if (!assocBlock) return;
-
-      const inner = assocBlock.slice('<dt_assoc>'.length, -'</dt_assoc>'.length);
-      result[service] = this.parseServiceSection(inner);
-    });
-
-    // Also extract common top-level flags if present
-    if (result.is_search_completed === undefined) {
-      result.is_search_completed = this.extractXmlValue(attributesXml, 'is_search_completed');
-    }
-    if (result.request_response_time === undefined) {
-      result.request_response_time = this.extractXmlValue(attributesXml, 'request_response_time');
-    }
-
-    return result;
   }
 
   /**
-   * Parse any service section (inner of service's <dt_assoc>)
+   * Parse suggestions data from NAME_SUGGEST response
    */
-  parseServiceSection(serviceXml) {
-    const result = {};
-
-    // Count (optional)
-    const count = this.extractXmlValue(serviceXml, 'count');
-    if (count) result.count = Number(count);
-
-    // Response info
-    const responseCode = this.extractXmlValue(serviceXml, 'response_code');
-    const responseText = this.extractXmlValue(serviceXml, 'response_text');
-    const isSuccess = this.extractXmlValue(serviceXml, 'is_success');
-    if (responseCode) result.response_code = responseCode;
-    if (responseText) result.response_text = responseText;
-    if (isSuccess !== null) result.is_success = isSuccess === '1';
-
-    // Items: first try direct regex for a clean <dt_array> wrapper
-    const itemsMatch = serviceXml.match(/<item\s+key="items">\s*<dt_array>([\s\S]*?)<\/dt_array>\s*<\/item>/s);
-    if (itemsMatch) {
-      result.items = this.parseItemsArray(itemsMatch[1]);
-    } else {
-      // If regex fails, use balanced extraction for items -> dt_array
-      const itemsBlock = this.extractItemBlock(serviceXml, 'items');
-      if (itemsBlock) {
-        const arrStart = itemsBlock.indexOf('<dt_array>');
-        if (arrStart !== -1) {
-          const arrBlock = this.balancedSlice(itemsBlock, arrStart, '<dt_array>', '</dt_array>');
-          if (arrBlock) {
-            const inner = arrBlock.slice('<dt_array>'.length, -'</dt_array>'.length);
-            result.items = this.parseItemsArray(inner);
+  parseSuggestionsData(attributesContent, attributes) {
+    try {
+      // Look for suggestion service results
+      const suggestionMatch = attributesContent.match(/<item key="suggestion">\s*<dt_assoc>(.*?)<\/dt_assoc>\s*<\/item>/s);
+      if (suggestionMatch) {
+        const suggestionContent = suggestionMatch[1];
+        
+        // Extract items array from suggestions
+        const itemsMatch = suggestionContent.match(/<item key="items">\s*<dt_array>(.*?)<\/dt_array>\s*<\/item>/s);
+        if (itemsMatch) {
+          const itemsContent = itemsMatch[1];
+          const domains = [];
+          
+          // Extract individual domain suggestions
+          const domainMatches = itemsContent.match(/<item key="\d+">\s*<dt_assoc>(.*?)<\/dt_assoc>\s*<\/item>/gs);
+          if (domainMatches) {
+            domainMatches.forEach(match => {
+              const domainMatch = match.match(/<item key="domain">([^<]+)<\/item>/);
+              if (domainMatch) {
+                domains.push(domainMatch[1]);
+              }
+            });
           }
+          
+          attributes.suggested_domains = domains;
         }
       }
-    }
-
-    if (!result.items) result.items = [];
-    return result;
-  }
-
-  /**
-   * Parse items array: expects the INNER content of <dt_array>…</dt_array>
-   */
-  parseItemsArray(itemsXml) {
-    const items = [];
-
-    console.log('Parsing items array, XML length:', itemsXml.length);
-    console.log('Items XML preview:', itemsXml.substring(0, 300));
-
-    // If caller accidentally passed the full wrapper, strip it
-    const dtArray = itemsXml.match(/<dt_array>([\s\S]*?)<\/dt_array>/s);
-    const content = dtArray ? dtArray[1] : itemsXml;
-
-    // Match <item key="N"> <dt_assoc> ... </dt_assoc> </item> (tolerant)
-    const itemRegex = /<item[^>]*\bkey="(\d+)"[^>]*>\s*<dt_assoc>([\s\S]*?)<\/dt_assoc>\s*<\/item>/g;
-    let m;
-    while ((m = itemRegex.exec(content)) !== null) {
-      const assoc = m[2];
-      const domain = this.extractXmlValue(assoc, 'domain');
-      const status = this.extractXmlValue(assoc, 'status');
-      const price = this.extractXmlValue(assoc, 'price');
-
-      if (domain) {
-        const rec = {
-          domain,
-          status: status || 'unknown',
-          available: status === 'available'
-        };
-        if (price && !Number.isNaN(Number(price))) rec.price = Number(price);
-        items.push(rec);
+      
+      // Look for lookup service results  
+      const lookupMatch = attributesContent.match(/<item key="lookup">\s*<dt_assoc>(.*?)<\/dt_assoc>\s*<\/item>/s);
+      if (lookupMatch) {
+        const lookupContent = lookupMatch[1];
+        
+        // Extract items array from lookup
+        const itemsMatch = lookupContent.match(/<item key="items">\s*<dt_array>(.*?)<\/dt_array>\s*<\/item>/s);
+        if (itemsMatch) {
+          const itemsContent = itemsMatch[1];
+          const domains = [];
+          
+          // Extract individual domain lookups
+          const domainMatches = itemsContent.match(/<item key="\d+">\s*<dt_assoc>(.*?)<\/dt_assoc>\s*<\/item>/gs);
+          if (domainMatches) {
+            domainMatches.forEach(match => {
+              const domainMatch = match.match(/<item key="domain">([^<]+)<\/item>/);
+              if (domainMatch) {
+                domains.push(domainMatch[1]);
+              }
+            });
+          }
+          
+          attributes.lookup_domains = domains;
+        }
       }
+    } catch (error) {
+      console.warn('Warning: Could not parse suggestions data:', error.message);
     }
-
-    console.log(`Total items parsed: ${items.length}`);
-    return items;
   }
 
   /**
-   * Parse suggestions utility
+   * Domain lookup function with caching
    */
-  parseSuggestions(suggestionData) {
-    const result = {
-      count: Number(suggestionData.count) || 0,
-      items: []
-    };
-
-    if (suggestionData.items && Array.isArray(suggestionData.items)) {
-      result.items = suggestionData.items.map(item => ({
-        domain: item.domain || '',
-        status: item.status || 'unknown',
-        available: item.status === 'available'
-      }));
-    }
-
-    return result;
-  }
-
-  /**
-   * Parse lookups utility
-   */
-  parseLookups(lookupData) {
-    const result = {
-      count: Number(lookupData.count) || 0,
-      items: []
-    };
-
-    if (lookupData.items && Array.isArray(lookupData.items)) {
-      result.items = lookupData.items.map(item => ({
-        domain: item.domain || '',
-        status: item.status || 'unknown',
-        available: item.status === 'available'
-      }));
-    }
-
-    return result;
-  }
-
-  // =========================
-  // PUBLIC API METHODS
-  // =========================
-
   async lookupDomain(domain) {
-    return this.makeRequest('LOOKUP', 'DOMAIN', { domain });
+    // Check cache first
+    const cached = this.cache.getCachedLookup(domain);
+    if (cached) {
+      return cached;
+    }
+
+    // Make API call if not cached
+    const lookupXml = require('./xml-templates/lookup-domain')(domain);
+    const result = await this.makeRequest(lookupXml);
+    
+    // Cache the result
+    this.cache.cacheLookup(domain, result);
+    
+    return result;
   }
 
-  async getDomain(domain) {
-    return this.makeRequest('GET', 'DOMAIN', { domain });
-  }
-  // Normalize phone to OpenSRS format: +1.4165550123
-normalizePhone(phone) {
-  if (!phone) return phone;
-  // Remove everything except digits and +
-  let s = String(phone).replace(/[^\d+]/g, '');
-  // Collapse multiple + and keep only leading
-  s = s.replace(/\++/g, '+').replace(/(?!^)\+/g, '');
-  // If user forgot +, add it
-  if (!s.startsWith('+')) s = `+${s}`;
-  
-  // For OpenSRS, format as +1.4165550123 (add dot after country code for North American numbers)
-  if (s.startsWith('+1') && s.length === 12) {
-    s = s.substring(0, 2) + '.' + s.substring(2);
-  }
-  
-  return s;
-}
-
- normalizeContact(contact) {
-   if (!contact) return contact;
-   const c = { ...contact };
-   
-   // Normalize phone numbers
-   if (c.phone) c.phone = this.normalizePhone(c.phone);
-   if (c.fax) c.fax = this.normalizePhone(c.fax);
-   
-   // Normalize country and state codes
-   if (c.country) c.country = String(c.country).toUpperCase(); // ISO-2
-   if (c.state) c.state = String(c.state).toUpperCase();   // e.g., NY, CA
-   
-   // Ensure required fields are present
-   if (!c.address3 && contact === c) c.address3 = 'Owner'; // Default address3
-   
-   // Ensure all required fields have values
-   const requiredFields = ['first_name', 'last_name', 'address1', 'city', 'state', 'country', 'postal_code', 'phone', 'email'];
-   for (const field of requiredFields) {
-     if (!c[field]) {
-       console.warn(`⚠️ Missing required contact field: ${field}`);
-     }
-   }
-   
-   return c;
- }
-
-toArrayObj(arr = []) {
-  return Object.fromEntries((arr || []).map((v, i) => [String(i), v]));
-}
-
- async registerDomain(domain, contacts, period = 1, nameservers = [], options = {}) {
-   // Normalize contacts to OpenSRS expectations
-   const contact_set = {};
-   if (contacts?.registrant_contact) contact_set.owner   = this.normalizeContact(contacts.registrant_contact);
-   if (contacts?.admin_contact)      contact_set.admin   = this.normalizeContact(contacts.admin_contact);
-   if (contacts?.tech_contact)       contact_set.tech    = this.normalizeContact(contacts.tech_contact);
-   if (contacts?.billing_contact)    contact_set.billing = this.normalizeContact(contacts.billing_contact);
-
-   // If no admin contact provided, use owner contact
-   if (!contact_set.admin && contact_set.owner) {
-     contact_set.admin = { ...contact_set.owner, address3: 'Admin' };
-   }
-   
-   // If no billing contact provided, use owner contact  
-   if (!contact_set.billing && contact_set.owner) {
-     contact_set.billing = { ...contact_set.owner, address3: 'Billing' };
-   }
-
-   const attributes = {
-     reg_type: 'new',
-     domain,
-     period: Number(period) || 1,
-     handle: 'process',
-     auto_renew: options.auto_renew ? 1 : 0,
-     f_whois_privacy: options.whois_privacy ? 1 : 0,
-     // Domain registration credentials (required by OpenSRS)
-     reg_username: options.reg_username || process.env.OPENSRS_REG_USERNAME || 'testuser',
-     reg_password: options.reg_password || process.env.OPENSRS_REG_PASSWORD || 'testpass123',
-     contact_set
-   };
-
-   // Handle nameservers with proper OpenSRS format
-   if (Array.isArray(nameservers) && nameservers.length > 0) {
-     attributes.custom_nameservers = 1;
-     const nameserverArray = {};
-     nameservers.forEach((ns, index) => {
-       nameserverArray[index] = {
-         name: ns,
-         sortorder: index + 1
-       };
-     });
-     attributes.nameserver_list = nameserverArray;
-   } else {
-     attributes.custom_nameservers = 0;
-   }
-
-   // Set custom_tech_contact flag
-   attributes.custom_tech_contact = contact_set.tech ? 1 : 0;
-
-   console.log('🏗️ Domain registration attributes:', JSON.stringify(attributes, null, 2));
-
-   return this.makeRequest('SW_REGISTER', 'DOMAIN', attributes);
- }
-
-
-  async renewDomain(domain, period = 1) {
-    return this.makeRequest('RENEW', 'DOMAIN', { domain, period });
-  }
-
-  async modifyDomain(domain, attributes) {
-    return this.makeRequest('MODIFY', 'DOMAIN', { domain, ...attributes });
-  }
-
-  async updateContacts(domain, contacts) {
-    return this.makeRequest('UPDATE_CONTACTS', 'DOMAIN', { domain, ...contacts });
-  }
-
+  /**
+   * Get domain price function with caching
+   */
   async getPrice(domain) {
-    return this.makeRequest('GET_PRICE', 'DOMAIN', { domain });
+    // Check cache first
+    const cached = this.cache.getCachedPrice(domain);
+    if (cached) {
+      return cached;
+    }
+
+    // Make API call if not cached
+    const priceXml = require('./xml-templates/get-price')(domain);
+    const result = await this.makeRequest(priceXml);
+    
+    // Cache the result
+    this.cache.cachePrice(domain, result);
+
+    return result;
   }
 
-  async getBalance() {
-    return this.makeRequest('GET_BALANCE', 'BALANCE', {});
+  /**
+   * Get name suggestions function
+   */
+  async getNameSuggestions(searchString) {
+    const suggestionsXml = require('./xml-templates/name-suggest')(searchString);
+    return await this.makeRequest(suggestionsXml);
   }
 
-  async getNameSuggestions(searchString, options = {}) {
-    const {
-      services = ['lookup', 'suggestion', 'premium', 'personal_names'],
-      tlds = ['.com', '.net', '.org', '.info', '.biz', '.us', '.mobi'],
-      languages = ['en'],
-      maxWaitTime = 30,
-      serviceOverride = null,
-      searchKey = null
-    } = options;
+  /**
+   * Combined domain search with suggestions and pricing (Optimized with parallel processing)
+   */
+  async searchDomainWithSuggestions(searchQuery) {
+    try {
+      const startTime = Date.now();
+      console.log(`🔍 Starting optimized domain search for: ${searchQuery}`);
 
-    const tldArray = {};
-    tlds.forEach((tld, index) => { tldArray[index] = tld; });
+      // Get name suggestions first
+      const suggestionsResult = await this.getNameSuggestions(searchQuery);
+      
+      if (!suggestionsResult.success) {
+        return {
+          success: false,
+          error: 'Failed to get domain suggestions',
+          data: null
+        };
+      }
 
-    const servicesArray = {};
-    services.forEach((service, index) => { servicesArray[index] = service; });
+      // Extract suggested domains from the suggestions result
+      const allSuggestedDomains = this.extractSuggestedDomains(suggestionsResult.data, searchQuery);
+      // Limit to first 10 domains for performance
+      const suggestedDomains = allSuggestedDomains.slice(0, 10);
+      console.log(`📋 Processing ${suggestedDomains.length} domains out of ${allSuggestedDomains.length} suggestions in parallel...`);
+      
+      // Process domains in batches to avoid overwhelming the API
+      const batchSize = 5; // Process 5 domains at a time
+      const results = [];
+      
+      for (let i = 0; i < suggestedDomains.length; i += batchSize) {
+        const batch = suggestedDomains.slice(i, i + batchSize);
+        console.log(`🔄 Processing batch ${Math.floor(i/batchSize) + 1}: ${batch.join(', ')}`);
+        
+        const batchPromises = batch.map(async (domain) => {
+        try {
+          console.log(`🔍 Processing domain: ${domain}`);
+          
+          // Run lookup and pricing in parallel for each domain with individual error handling
+          const lookupPromise = this.lookupDomain(domain).catch(err => ({
+            success: false,
+            error: `Lookup failed: ${err.message}`,
+            data: null
+          }));
+          
+          const pricePromise = this.getPrice(domain).catch(err => ({
+            success: false,
+            error: `Price failed: ${err.message}`,
+            data: null
+          }));
 
-    const attributes = {
-      searchstring: searchString,
-      services: servicesArray,
-      tlds: tldArray,
-      language_list: languages.join(','),
-      max_wait_time: maxWaitTime
-    };
+          const [lookupResult, priceResult] = await Promise.all([lookupPromise, pricePromise]);
 
-    if (searchKey) attributes.search_key = searchKey;
-    if (serviceOverride) attributes.service_override = serviceOverride;
+          const availability = lookupResult.success && lookupResult.data?.status ? lookupResult.data.status : 'unknown';
+          
+          console.log(`📊 ${domain}: availability=${availability}, priceSuccess=${priceResult.success}`);
+          if (priceResult.success) {
+            console.log(`💰 ${domain} price data:`, JSON.stringify(priceResult.data, null, 2));
+          } else {
+            console.log(`❌ ${domain} price error:`, priceResult.error || 'Unknown error');
+            console.log(`❌ ${domain} price response code:`, priceResult.responseCode);
+            console.log(`❌ ${domain} price response text:`, priceResult.responseText);
+          }
+          
+          return {
+        domain,
+            availability,
+            lookupSuccess: lookupResult.success,
+            priceSuccess: priceResult.success,
+            priceData: priceResult.data,
+            priceError: priceResult.error
+          };
+        } catch (error) {
+          console.error(`❌ Error processing ${domain}:`, error.message);
+          return {
+            domain,
+            availability: 'error',
+            lookupSuccess: false,
+            priceSuccess: false,
+            priceData: null,
+            priceError: error.message
+          };
+        }
+      });
 
-    return this.makeRequest('NAME_SUGGEST', 'DOMAIN', attributes);
+        // Wait for batch to complete and add to results
+        const batchResults = await Promise.all(batchPromises);
+        results.push(...batchResults);
+        
+        // Small delay between batches to be gentle on the API
+        if (i + batchSize < suggestedDomains.length) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
+
+      const domainResults = results;
+      
+      // Debug: Log all results before filtering
+      console.log('🔍 All domain results before filtering:');
+      domainResults.forEach(result => {
+        console.log(`  ${result.domain}: ${result.availability} (lookup: ${result.lookupSuccess}, price: ${result.priceSuccess})`);
+      });
+      
+      // Filter and format only available domains
+      const suggestions = domainResults
+        .filter(result => {
+          const isAvailable = result.availability === 'available';
+          if (!isAvailable) {
+            console.log(`🚫 Filtering out ${result.domain} - Status: ${result.availability}`);
+          }
+          return isAvailable;
+        })
+        .map(result => {
+          const suggestion = {
+            domain: result.domain,
+            availability: result.availability,
+            price: null,
+            currency: null,
+            debug: {
+              priceSuccess: result.priceSuccess,
+              priceError: result.priceError || null
+            }
+          };
+
+          // Add pricing for available domains
+          if (result.priceSuccess && result.priceData) {
+            suggestion.price = result.priceData.price || null;
+            suggestion.currency = result.priceData.currency || 'USD';
+            console.log(`💰 Added pricing for ${result.domain}: $${suggestion.price} ${suggestion.currency}`);
+          } else {
+            console.log(`⚠️ No pricing for ${result.domain}: priceSuccess=${result.priceSuccess}, error=${result.priceError}`);
+          }
+
+          return suggestion;
+        });
+
+      const processingTime = Date.now() - startTime;
+      console.log(`✅ Search completed in ${processingTime}ms`);
+      console.log(`📊 Results: ${suggestions.length} available domains out of ${suggestedDomains.length} checked`);
+      console.log(`📦 Cache stats:`, this.cache.getStats());
+
+      return {
+        success: true,
+        data: {
+          search_query: searchQuery,
+          suggestions: suggestions,
+          stats: {
+            total_checked: suggestedDomains.length,
+            available_count: suggestions.length,
+            processing_time_ms: processingTime,
+            cache_stats: this.cache.getStats()
+          }
+        }
+      };
+
+    } catch (error) {
+      console.error('Error in searchDomainWithSuggestions:', error);
+      return {
+        success: false,
+        error: error.message,
+        data: null
+      };
+    }
   }
 
-  // DNS Zone Management
+  /**
+   * Extract suggested domains from name suggestions response
+   */
+  extractSuggestedDomains(data, originalSearchQuery) {
+    // Extract base name from search query (remove any existing TLD)
+    const baseName = originalSearchQuery.replace(/\..+$/, '');
+    
+    let domains = [];
+    
+    // First, try to use actual OpenSRS suggestions if available
+    if (data && data.suggested_domains && data.suggested_domains.length > 0) {
+      domains = data.suggested_domains;
+      console.log('✅ Using OpenSRS suggested domains:', domains);
+    } else if (data && data.lookup_domains && data.lookup_domains.length > 0) {
+      domains = data.lookup_domains;
+      console.log('✅ Using OpenSRS lookup domains:', domains);
+    } else {
+      // Fallback: Generate common TLD alternatives
+      console.log('⚠️ No OpenSRS suggestions found, generating fallback domains');
+      const tlds = ['.com', '.net', '.org', '.co', '.info', '.biz', '.us'];
+      domains = tlds.map(tld => baseName + tld);
+    }
+    
+    console.log(`🎯 Final domain list for "${baseName}":`, domains);
+    return domains;
+  }
+
+  /**
+   * Register a new domain
+   */
+  async registerDomain(registrationData) {
+    try {
+      console.log('🔧 Registering domain:', registrationData.domain);
+      
+      const xml = registerDomainTemplate(registrationData);
+      // Use longer timeout for domain registration (30 seconds)
+      const result = await this.makeRequest(xml, 30000);
+      
+      console.log('✅ Domain registration result:', result);
+      return result;
+    } catch (error) {
+      console.error('❌ Domain registration failed:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Modify domain properties
+   */
+  async modifyDomain(domain, modificationType, modificationData) {
+    try {
+      console.log('🔧 Modifying domain:', domain, 'Type:', modificationType);
+      console.log('🔧 Modification data:', modificationData);
+      
+      const templateData = {
+        domain,
+        data: modificationType,
+        ...modificationData
+      };
+      console.log('🔧 Template data:', JSON.stringify(templateData, null, 2));
+      
+      const xml = modifyDomainTemplate(templateData);
+      
+      console.log('🔧 Generated modify XML:');
+      console.log(xml);
+      
+      const result = await this.makeRequest(xml);
+      
+      console.log('✅ Domain modification result:', result);
+      return result;
+    } catch (error) {
+      console.error('❌ Domain modification failed:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Create DNS zone for domain
+   */
   async createDnsZone(domain, records = []) {
-    return this.makeRequest('create_dns_zone', 'domain', { domain, records });
+    try {
+      console.log('🔧 Creating DNS zone for:', domain);
+      
+      const xml = createDnsZoneTemplate({ domain, records });
+      const result = await this.makeRequest(xml);
+      
+      console.log('✅ DNS zone creation result:', result);
+      return result;
+    } catch (error) {
+      console.error('❌ DNS zone creation failed:', error.message);
+      throw error;
+    }
   }
+
+  /**
+   * Get DNS zone records for domain
+   */
   async getDnsZone(domain) {
-    return this.makeRequest('get_dns_zone', 'domain', { domain });
+    try {
+      console.log('🔧 Getting DNS zone for:', domain);
+      
+      const xml = getDnsZoneTemplate(domain);
+      const result = await this.makeRequest(xml);
+      
+      console.log('✅ DNS zone retrieval result:', result);
+      return result;
+    } catch (error) {
+      console.error('❌ DNS zone retrieval failed:', error.message);
+      throw error;
+    }
   }
+
+  /**
+   * Set/Update DNS zone records for domain
+   */
   async setDnsZone(domain, records) {
-    return this.makeRequest('set_dns_zone', 'domain', { domain, records });
+    try {
+      console.log('🔧 Setting DNS zone for:', domain);
+      
+      const xml = setDnsZoneTemplate({ domain, records });
+      const result = await this.makeRequest(xml);
+      
+      console.log('✅ DNS zone update result:', result);
+      return result;
+    } catch (error) {
+      console.error('❌ DNS zone update failed:', error.message);
+      throw error;
+    }
   }
+
+  /**
+   * Delete DNS zone for domain
+   */
   async deleteDnsZone(domain) {
-    return this.makeRequest('delete_dns_zone', 'domain', { domain });
-  }
-  async resetDnsZone(domain) {
-    return this.makeRequest('reset_dns_zone', 'domain', { domain });
-  }
-  async forceDnsNameservers(domain, nameservers) {
-    return this.makeRequest('force_dns_nameservers', 'domain', { domain, nameservers });
-  }
-
-  // Nameserver Management
-  async createNameserver(nameserver, ipAddress) {
-    return this.makeRequest('CREATE', 'NAMESERVER', { nameserver, ip_address: ipAddress });
-  }
-  async getNameserver(nameserver) {
-    return this.makeRequest('GET', 'NAMESERVER', { nameserver });
-  }
-  async modifyNameserver(nameserver, ipAddress) {
-    return this.makeRequest('MODIFY', 'NAMESERVER', { nameserver, ip_address: ipAddress });
-  }
-  async deleteNameserver(nameserver) {
-    return this.makeRequest('DELETE', 'NAMESERVER', { nameserver });
-  }
-  async advancedUpdateNameservers(domain, nameservers) {
-    return this.makeRequest('ADVANCED_UPDATE_NAMESERVERS', 'DOMAIN', { domain, nameserver_list: nameservers });
-  }
-  async registryAddNs(domain, nameserver, ipAddress) {
-    return this.makeRequest('REGISTRY_ADD_NS', 'NAMESERVER', { domain, nameserver, ip_address: ipAddress });
-  }
-  async registryCheckNameserver(nameserver) {
-    return this.makeRequest('REGISTRY_CHECK_NAMESERVER', 'NAMESERVER', { nameserver });
+    try {
+      console.log('🔧 Deleting DNS zone for:', domain);
+      
+      const xml = deleteDnsZoneTemplate(domain);
+      const result = await this.makeRequest(xml);
+      
+      console.log('✅ DNS zone deletion result:', result);
+      return result;
+    } catch (error) {
+      console.error('❌ DNS zone deletion failed:', error.message);
+      throw error;
+    }
   }
 
-  // Domain Transfer APIs
-  async checkTransfer(domain, authInfo) {
-    return this.makeRequest('CHECK_TRANSFER', 'DOMAIN', { domain, auth_info: authInfo });
-  }
-  async processTransfer(domain, authInfo, contacts) {
-    return this.makeRequest('PROCESS_TRANSFER', 'DOMAIN', { domain, auth_info: authInfo, ...contacts });
-  }
-  async cancelTransfer(domain) {
-    return this.makeRequest('CANCEL_TRANSFER', 'DOMAIN', { domain });
-  }
-  async getTransfersIn() {
-    return this.makeRequest('GET_TRANSFERS_IN', 'TRANSFER', {});
-  }
-  async getTransfersAway() {
-    return this.makeRequest('GET_TRANSFERS_AWAY', 'TRANSFER', {});
-  }
-  async sendPassword(domain, type = 'transfer') {
-    return this.makeRequest('SEND_PASSWORD', 'DOMAIN', { domain, type });
-  }
-  async tradeDomain(domain, authInfo, contacts) {
-    return this.makeRequest('TRADE_DOMAIN', 'DOMAIN', { domain, auth_info: authInfo, ...contacts });
-  }
-
-  // Additional Domain APIs
-  async getDomainsByExpireDate(expireFrom, expireTo) {
-    return this.makeRequest('GET_DOMAINS_BY_EXPIREDATE', 'DOMAIN', { expire_from: expireFrom, expire_to: expireTo });
-  }
-  async getDomainsContacts(domain) {
-    return this.makeRequest('GET_DOMAINS_CONTACTS', 'DOMAIN', { domain });
-  }
-  async getNotes(domain) {
-    return this.makeRequest('GET_NOTES', 'DOMAIN', { domain });
-  }
-  async getOrderInfo(orderId) {
-    return this.makeRequest('GET_ORDER_INFO', 'ORDER', { order_id: orderId });
-  }
-  async getOrdersByDomain(domain) {
-    return this.makeRequest('GET_ORDERS_BY_DOMAIN', 'ORDER', { domain });
-  }
-  async getRegistrantVerificationStatus(domain) {
-    return this.makeRequest('GET_REGISTRANT_VERIFICATION_STATUS', 'DOMAIN', { domain });
-  }
-  async sendRegistrantVerificationEmail(domain) {
-    return this.makeRequest('SEND_REGISTRANT_VERIFICATION_EMAIL', 'DOMAIN', { domain });
-  }
-  async setDomainAffiliateId(domain, affiliateId) {
-    return this.makeRequest('SET_DOMAIN_AFFILIATE_ID', 'DOMAIN', { domain, affiliate_id: affiliateId });
-  }
-  async getDomainAffiliateId(domain) {
-    return this.makeRequest('GET_DOMAIN_AFFILIATE_ID', 'DOMAIN', { domain });
-  }
-  async getDeletedDomains() {
-    return this.makeRequest('GET_DELETED_DOMAINS', 'DOMAIN', {});
-  }
-  async getContract(domain) {
-    return this.makeRequest('GET_CONTRACT', 'DOMAIN', { domain });
-  }
-
-  // DNSSEC Management
-  async modifyDnssec(domain, dnssecData) {
-    return this.makeRequest('MODIFY', 'DNSSEC', { domain, ...dnssecData });
-  }
-  async getDnssec(domain) {
-    return this.makeRequest('GET', 'DNSSEC', { domain });
-  }
-  async setDnssecInfo(domain, dnssecInfo) {
-    return this.makeRequest('SET_DNSSEC_INFO', 'DNSSEC', { domain, ...dnssecInfo });
-  }
-
-  // Domain Forwarding
-  async createDomainForwarding(domain, forwardingData) {
-    return this.makeRequest('CREATE_DOMAIN_FORWARDING', 'DOMAIN_FORWARDING', { domain, ...forwardingData });
-  }
-  async getDomainForwarding(domain) {
-    return this.makeRequest('GET_DOMAIN_FORWARDING', 'DOMAIN_FORWARDING', { domain });
-  }
-  async setDomainForwarding(domain, forwardingData) {
-    return this.makeRequest('SET_DOMAIN_FORWARDING', 'DOMAIN_FORWARDING', { domain, ...forwardingData });
-  }
-  async deleteDomainForwarding(domain) {
-    return this.makeRequest('DELETE_DOMAIN_FORWARDING', 'DOMAIN_FORWARDING', { domain });
-  }
-
-  // Bulk Change
-  async submitBulkChange(bulkChangeData) {
-    return this.makeRequest('SUBMIT', 'BULK_CHANGE', bulkChangeData);
-  }
-  async submitBulkChangeWhoisPrivacy(domains, privacySetting) {
-    return this.makeRequest('SUBMIT_BULK_CHANGE', 'BULK_CHANGE', { domains, whois_privacy: privacySetting });
-  }
-
-  // User Management
-  async addSubuser(subuserData) {
-    return this.makeRequest('ADD', 'SUBUSER', subuserData);
-  }
-  async getSubuser(username) {
-    return this.makeRequest('GET', 'SUBUSER', { username });
-  }
-  async modifySubuser(username, subuserData) {
-    return this.makeRequest('MODIFY', 'SUBUSER', { username, ...subuserData });
-  }
-  async deleteSubuser(username) {
-    return this.makeRequest('DELETE', 'SUBUSER', { username });
-  }
-  async getUserInfo() {
-    return this.makeRequest('GET', 'USERINFO', {});
-  }
-
-  // Authentication / Ownership
-  async changeOwnership(domain, newOwnerData) {
-    return this.makeRequest('CHANGE', 'OWNERSHIP', { domain, ...newOwnerData });
-  }
-  async sendAuthcode(domain) {
-    return this.makeRequest('SEND_AUTHCODE', 'DOMAIN', { domain });
-  }
-
-  // Event Notifications
-  async pollEvent() {
-    return this.makeRequest('POLL_EVENT', 'EVENT', {});
-  }
-  async ackEvent(eventId) {
-    return this.makeRequest('ACK_EVENT', 'EVENT', { event_id: eventId });
-  }
-
-  // ICANN Trade
-  async modifyTradeLockSetting(domain, lockSetting) {
-    return this.makeRequest('MODIFY_TRADE_LOCK_SETTING', 'ICANN_TRADE', { domain, ...lockSetting });
-  }
-  async getTradeLockSetting(domain) {
-    return this.makeRequest('GET_TRADE_LOCK_SETTING', 'ICANN_TRADE', { domain });
-  }
-  async modifyTradeDesignatedAgent(domain, agentData) {
-    return this.makeRequest('MODIFY_TRADE_DESIGNATED_AGENT', 'ICANN_TRADE', { domain, ...agentData });
-  }
-  async getTradeDesignatedAgent(domain) {
-    return this.makeRequest('GET_TRADE_DESIGNATED_AGENT', 'ICANN_TRADE', { domain });
-  }
-  async enableDesignatedAgent(domain) {
-    return this.makeRequest('ENABLE_DESIGNATED_AGENT', 'ICANN_TRADE', { domain });
-  }
-  async cancelIcannTrade(domain) {
-    return this.makeRequest('CANCEL_ICANN_TRADE', 'ICANN_TRADE', { domain });
-  }
-  async resendTradeApprovalNotice(domain) {
-    return this.makeRequest('RESEND_TRADE_APPROVAL_NOTICE', 'ICANN_TRADE', { domain });
-  }
-
-  // Personal Names Service
-  async registerPersonalName(personalNameData) {
-    return this.makeRequest('SU_REGISTER', 'PERSONAL_NAME', personalNameData);
-  }
-  async queryPersonalName(surname) {
-    return this.makeRequest('QUERY', 'SURNAME', { surname });
-  }
-  async updatePersonalName(surname, updateData) {
-    return this.makeRequest('UPDATE', 'SURNAME', { surname, ...updateData });
-  }
-  async deletePersonalName(surname) {
-    return this.makeRequest('DELETE', 'SURNAME', { surname });
-  }
-
-  // GDPR
-  async gdprSendConsentReminderEmail(domain) {
-    return this.makeRequest('GDPR_SEND_CONSENT_REMINDER_EMAIL', 'GDPR', { domain });
-  }
-
-  // Messaging
-  async modifyMessagingLanguage(domain, language) {
-    return this.makeRequest('MODIFY_MESSAGING_LANGUAGE', 'DOMAIN', { domain, language });
-  }
 }
 
 module.exports = OpenSRSClient;
