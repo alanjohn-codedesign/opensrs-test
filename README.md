@@ -45,7 +45,7 @@ A comprehensive Node.js backend API for OpenSRS domain management services. This
    OPENSRS_TEST_MODE=true
    OPENSRS_TEST_USERNAME=your_test_username
    OPENSRS_TEST_API_KEY=your_test_api_key
-   PORT=3000
+   PORT=3001
    HOST=localhost
    NODE_ENV=development
    ```
@@ -55,18 +55,18 @@ A comprehensive Node.js backend API for OpenSRS domain management services. This
    npm start
    ```
 
-   The server will start on `http://localhost:3000`
+   The server will start on `http://localhost:3001`
 
 ## 📚 API Documentation
 
 ### Swagger UI
 Access the interactive API documentation at:
-- **Swagger UI**: http://localhost:3000/api-docs
-- **OpenAPI JSON**: http://localhost:3000/api-docs/swagger.json
+- **Swagger UI**: http://localhost:3001/api-docs
+- **OpenAPI JSON**: http://localhost:3001/api-docs/swagger.json
 
 ### API Information
 Get general API information at:
-- **API Info**: http://localhost:3000/api
+- **API Info**: http://localhost:3001/api
 
 ## 🔧 Essential APIs
 
@@ -256,7 +256,7 @@ opensrs/
 | `OPENSRS_TEST_MODE` | Enable test mode | No | `false` |
 | `OPENSRS_TEST_USERNAME` | Test username | No | - |
 | `OPENSRS_TEST_API_KEY` | Test API key | No | - |
-| `PORT` | Server port | No | `3000` |
+| `PORT` | Server port | No | `3001` |
 | `HOST` | Server host | No | `localhost` |
 | `NODE_ENV` | Environment | No | `development` |
 

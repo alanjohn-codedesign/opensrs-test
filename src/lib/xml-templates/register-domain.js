@@ -4,6 +4,24 @@
  */
 
 module.exports = (registrationData) => {
+    // Debug: Log the incoming data
+    console.log('🔧 XML Template - Incoming registration data:');
+    console.log('  Domain:', registrationData?.domain);
+    console.log('  ContactSet type:', typeof registrationData?.contactSet);
+    console.log('  ContactSet:', registrationData?.contactSet);
+    console.log('  Nameservers:', registrationData?.nameservers);
+
+    // Validate required data
+    if (!registrationData) {
+        throw new Error('Registration data is required');
+    }
+    if (!registrationData.contactSet) {
+        throw new Error('ContactSet is required');
+    }
+    if (typeof registrationData.contactSet !== 'object') {
+        throw new Error('ContactSet must be an object');
+    }
+
     const {
         domain,
         handle = 'process', // 'save' or 'process'

@@ -1,9 +1,9 @@
 /**
  * OpenSRS Get Domain XML Template
- * Based on OpenSRS get domain documentation
+ * Based on OpenSRS get domain documentation: https://domains.opensrs.guide/docs/get-domain
  */
 
-module.exports = (domain) => {
+module.exports = (domain, type = 'all_info') => {
     return `<?xml version='1.0' encoding='UTF-8' standalone='no' ?>
 <!DOCTYPE OPS_envelope SYSTEM 'ops.dtd'>
 <OPS_envelope>
@@ -19,6 +19,7 @@ module.exports = (domain) => {
         <item key="attributes">
             <dt_assoc>
                 <item key="domain">${domain}</item>
+                <item key="type">${type}</item>
             </dt_assoc>
         </item>
     </dt_assoc>

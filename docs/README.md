@@ -461,26 +461,26 @@ All API endpoints return consistent error responses:
 
 1. **Search for domains:**
 ```bash
-curl -X POST http://localhost:3000/api/domains/search \
+curl -X POST http://localhost:3001/api/domains/search \
   -H "Content-Type: application/json" \
   -d '{"search_query": "mycompany"}'
 ```
 
 2. **Check specific domain:**
 ```bash
-curl -X POST http://localhost:3000/api/domains/lookup \
+curl -X POST http://localhost:3001/api/domains/lookup \
   -H "Content-Type: application/json" \
   -d '{"domain": "mycompany.com"}'
 ```
 
 3. **Get pricing:**
 ```bash
-curl http://localhost:3000/api/domains/mycompany.com/price
+curl http://localhost:3001/api/domains/mycompany.com/price
 ```
 
 4. **Create DNS zone:**
 ```bash
-curl -X POST http://localhost:3000/api/dns/create-zone \
+curl -X POST http://localhost:3001/api/dns/create-zone \
   -H "Content-Type: application/json" \
   -d '{
     "domain": "mycompany.com",
@@ -497,7 +497,7 @@ curl -X POST http://localhost:3000/api/dns/create-zone \
 
 5. **Add additional DNS record:**
 ```bash
-curl -X POST http://localhost:3000/api/dns/add-record \
+curl -X POST http://localhost:3001/api/dns/add-record \
   -H "Content-Type: application/json" \
   -d '{
     "domain": "mycompany.com",
@@ -513,14 +513,14 @@ curl -X POST http://localhost:3000/api/dns/add-record \
 
 6. **Enable auto-renew:**
 ```bash
-curl -X PUT http://localhost:3000/api/domains/mycompany.com/autorenew \
+curl -X PUT http://localhost:3001/api/domains/mycompany.com/autorenew \
   -H "Content-Type: application/json" \
   -d '{"autoRenew": true, "letExpire": false}'
 ```
 
 7. **Enable WHOIS privacy:**
 ```bash
-curl -X PUT http://localhost:3000/api/domains/mycompany.com/whois-privacy \
+curl -X PUT http://localhost:3001/api/domains/mycompany.com/whois-privacy \
   -H "Content-Type: application/json" \
   -d '{"state": "enable"}'
 ```

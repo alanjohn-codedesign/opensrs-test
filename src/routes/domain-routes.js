@@ -299,7 +299,7 @@ router.get('/:domain/whois-privacy', async (req, res) => {
     console.log(`🔍 Getting WHOIS privacy state for domain: ${domain}`);
 
     // Use the get domain info to retrieve current WHOIS privacy state
-    const result = await opensrsClient.getDomain(domain);
+    const result = await opensrsClient.getDomain(domain, 'whois_privacy_state');
 
     if (!result.success) {
       return res.status(500).json({
@@ -385,6 +385,60 @@ router.put('/:domain/whois-privacy', async (req, res) => {
       success: false,
       error: 'Internal server error',
       message: error.message
+    });
+  }
+});
+
+/**
+ * @route GET /api/domains/:domain/info
+ * @desc Get complete domain information from OpenSRS
+ * @access Public
+ */
+router.get('/:domain/info', async (req, res) => {
+  try {
+    const { domain } = req.params;
+    const { type = 'all_info' } = req.query;
+
+    if (!domain) {
+      return res.status(400).json({
+        success: false,
+        error: 'Domain is required',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    console.log(`🔍 Getting domain information for: ${domain} (type: ${type})`);
+
+    // Use the OpenSRS getDomain method which supports different types
+    const result = await opensrsClient.getDomain(domain, type);
+
+    if (!result.success) {
+      return res.status(500).json({
+        success: false,
+        error: result.error || 'Failed to get domain information',
+        responseCode: result.responseCode,
+        responseText: result.responseText,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    res.json({
+      success: true,
+      domain: domain,
+      type: type,
+      data: result.data,
+      responseCode: result.responseCode,
+      responseText: result.responseText,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Domain information retrieval error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+      message: error.message,
+      timestamp: new Date().toISOString()
     });
   }
 });

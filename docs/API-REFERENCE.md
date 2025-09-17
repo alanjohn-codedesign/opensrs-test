@@ -5,7 +5,7 @@ Complete reference for all API endpoints, request/response formats, and error co
 ## Base URL
 
 ```
-http://localhost:3000/api
+http://localhost:3001/api
 ```
 
 ## Domain Management APIs

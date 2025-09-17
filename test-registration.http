@@ -1,5 +1,5 @@
 ### OpenSRS Domain Registration & DNS Management Tests
-### Make sure your server is running on http://localhost:3000
+### Make sure your server is running on http://localhost:3001
 ### Update environment variables in .env file before testing
 
 ###############################################
@@ -7,22 +7,56 @@
 ###############################################
 
 ### Health Check
-GET http://localhost:3000/health
+GET http://localhost:3001/health
+
+###############################################
+# 👤 USER MANAGEMENT
+###############################################
+
+### 0. Create Test User (Required for domain registration)
+POST http://localhost:3001/api/users
+Content-Type: application/json
+
+{
+  "username": "testuser123",
+  "email": "testuser@example.com",
+  "password": "testpass123",
+  "firstName": "Test",
+  "lastName": "User",
+  "phone": "+1.2125551234",
+  "address": {
+    "street": "123 Test Street",
+    "city": "New York",
+    "state": "NY",
+    "postalCode": "10001",
+    "country": "US"
+  }
+}
 
 ###############################################
 # 📝 DOMAIN REGISTRATION
 ###############################################
 
+### 0.1. Get User's Domains (Test the existing endpoint)
+GET http://localhost:3001/api/user/68ca2c8fd63f5d931b34d393/domains
+
+### 0.2. Get User's Domain Statistics
+GET http://localhost:3001/api/user/68ca2c8fd63f5d931b34d393/domains/stats
+
+### 0.3. Get User's Domains with Filtering
+GET http://localhost:3001/api/user/68ca2c8fd63f5d931b34d393/domains?status=active&limit=10&page=1&sort=-registrationDate
+
 ### 1. Register New Domain (.com)
-POST http://localhost:3000/api/registration/register
+POST http://localhost:3001/api/registration/register
 Content-Type: application/json
 
 {
-  "domain": "testdomain12345.com",
-  "handle": "save",
+  "domain": "testdomainalanjohnchacko123.com",
+  "handle": "process",
   "autoRenew": false,
   "regUsername": "testuser123",
   "regPassword": "testpass123",
+  "userId": "68ca2c8fd63f5d931b34d393",
   "nameservers": [
     "ns1.example.com",
     "ns2.example.com"
@@ -82,7 +116,7 @@ Content-Type: application/json
 }
 
 ### 2. Register Domain with TLD-specific data (.ca example)
-POST http://localhost:3000/api/registration/register
+POST http://localhost:3001/api/registration/register
 Content-Type: application/json
 
 {
@@ -91,6 +125,7 @@ Content-Type: application/json
   "autoRenew": true,
   "regUsername": "testuser123",
   "regPassword": "testpass123",
+  "userId": "REPLACE_WITH_ACTUAL_USER_ID_FROM_STEP_0",
   "contactSet": {
     "owner": {
       "firstName": "Canadian",
@@ -118,11 +153,11 @@ Content-Type: application/json
 ###############################################
 
 ### 3. Modify Domain Nameservers
-POST http://localhost:3000/api/registration/modify
+POST http://localhost:3001/api/registration/modify
 Content-Type: application/json
 
 {
-  "domain": "testdomain12345.com",
+  "domain": "testdomainalanjohnchacko.com",
   "modificationType": "nameserver_list",
   "nameservers": [
     "ns1.newhost.com",
@@ -132,31 +167,31 @@ Content-Type: application/json
 }
 
 ### 4. Enable Auto-Renewal
-POST http://localhost:3000/api/registration/modify
+POST http://localhost:3001/api/registration/modify
 Content-Type: application/json
 
 {
-  "domain": "testdomain12345.com",
+  "domain": "testdomainalanjohnchacko.com",
   "modificationType": "auto_renew",
   "autoRenew": true
 }
 
 ### 5. Disable Auto-Renewal
-POST http://localhost:3000/api/registration/modify
+POST http://localhost:3001/api/registration/modify
 Content-Type: application/json
 
 {
-  "domain": "testdomain12345.com",
+  "domain": "testdomainalanjohnchacko.com",
   "modificationType": "auto_renew",
   "autoRenew": false
 }
 
 ### 6. Update Contact Information
-POST http://localhost:3000/api/registration/modify
+POST http://localhost:3001/api/registration/modify
 Content-Type: application/json
 
 {
-  "domain": "testdomain12345.com",
+  "domain": "testdomainalanjohnchacko.com",
   "modificationType": "contact_info",
   "contactSet": {
     "owner": {
@@ -175,7 +210,7 @@ Content-Type: application/json
 }
 
 ### 7. Lock Domain
-POST http://localhost:3000/api/registration/modify
+POST http://localhost:3001/api/registration/modify
 Content-Type: application/json
 
 {
@@ -185,7 +220,7 @@ Content-Type: application/json
 }
 
 ### 8. Unlock Domain
-POST http://localhost:3000/api/registration/modify
+POST http://localhost:3001/api/registration/modify
 Content-Type: application/json
 
 {
@@ -197,13 +232,13 @@ Content-Type: application/json
 ###############################################
 # 🌐 DNS ZONE MANAGEMENT
 ###############################################
-
+GET /api/domains/testdomainalanjohnchacko.com/info
 ### 9. Create DNS Zone with Initial Records
-POST http://localhost:3000/api/dns/create-zone
+POST http://localhost:3001/api/dns/create-zone
 Content-Type: application/json
 
 {
-  "domain": "testdomain12345.com",
+  "domain": "testdomainalanjohnchacko.com",
   "records": [
     {
       "subdomain": "",
@@ -234,14 +269,14 @@ Content-Type: application/json
 }
 
 ### 10. Get DNS Zone Records
-GET http://localhost:3000/api/dns/get-zone/testdomain12345.com
+GET http://localhost:3001/api/dns/get-zone/testdomainalanjohnchacko.com
 
 ### 11. Set/Update DNS Zone Records (Replace All)
-POST http://localhost:3000/api/dns/set-zone
+POST http://localhost:3001/api/dns/set-zone
 Content-Type: application/json
 
 {
-  "domain": "testdomain12345.com",
+  "domain": "testdomainalanjohnchacko.com",
   "records": [
     {
       "subdomain": "",
@@ -278,11 +313,11 @@ Content-Type: application/json
 }
 
 ### 12. Add Single DNS Record
-POST http://localhost:3000/api/dns/add-record
+POST http://localhost:3001/api/dns/add-record
 Content-Type: application/json
 
 {
-  "domain": "testdomain12345.com",
+  "domain": "testdomainalanjohnchacko.com",
   "record": {
     "subdomain": "blog",
     "type": "A",
@@ -292,11 +327,11 @@ Content-Type: application/json
 }
 
 ### 13. Add CNAME Record
-POST http://localhost:3000/api/dns/add-record
+POST http://localhost:3001/api/dns/add-record
 Content-Type: application/json
 
 {
-  "domain": "testdomain12345.com",
+  "domain": "testdomainalanjohnchacko.com",
   "record": {
     "subdomain": "shop",
     "type": "CNAME",
@@ -306,11 +341,12 @@ Content-Type: application/json
 }
 
 ### 14. Add TXT Record for Domain Verification
-POST http://localhost:3000/api/dns/add-record
+POST http://localhost:3001/api/dns/add-record
 Content-Type: application/json
 
 {
-  "domain": "testdomain12345.com",
+  "domain": "testdomainalanjohnchacko.com
+  ",
   "record": {
     "subdomain": "_verification",
     "type": "TXT",
@@ -320,17 +356,17 @@ Content-Type: application/json
 }
 
 ### 15. Get Updated DNS Zone Records
-GET http://localhost:3000/api/dns/get-zone/testdomain12345.com
+GET http://localhost:3001/api/dns/get-zone/testdomainalanjohnchacko.com
 
 ### 16. Delete DNS Zone
-DELETE http://localhost:3000/api/dns/delete-zone/testdomain12345.com
+DELETE http://localhost:3001/api/dns/delete-zone/testdomain12345.com
 
 ###############################################
 # 🔍 DOMAIN SEARCH (Existing Functionality)
 ###############################################
 
 ### 17. Search for Available Domains
-POST http://localhost:3000/api/domains/search
+POST http://localhost:3001/api/domains/search
 Content-Type: application/json
 
 {
@@ -338,7 +374,7 @@ Content-Type: application/json
 }
 
 ### 18. Check Single Domain Availability
-POST http://localhost:3000/api/domains/lookup
+POST http://localhost:3001/api/domains/lookup
 Content-Type: application/json
 
 {
@@ -346,10 +382,10 @@ Content-Type: application/json
 }
 
 ### 19. Get Domain Price
-GET http://localhost:3000/api/domains/testregistration.com/price
+GET http://localhost:3001/api/domains/testregistration.com/price
 
 ### 20. Get Domain Suggestions
-POST http://localhost:3000/api/domains/suggestions
+POST http://localhost:3001/api/domains/suggestions
 Content-Type: application/json
 
 {
@@ -361,17 +397,17 @@ Content-Type: application/json
 ###############################################
 
 ### 21. Get Cache Statistics
-GET http://localhost:3000/api/domains/cache/stats
+GET http://localhost:3001/api/domains/cache/stats
 
 ### 22. Clear Expired Cache
-POST http://localhost:3000/api/domains/cache/clear
+POST http://localhost:3001/api/domains/cache/clear
 
 ###############################################
 # 🧪 EDGE CASES & ERROR HANDLING
 ###############################################
 
 ### 23. Try to Register Invalid Domain
-POST http://localhost:3000/api/registration/register
+POST http://localhost:3001/api/registration/register
 Content-Type: application/json
 
 {
@@ -381,7 +417,7 @@ Content-Type: application/json
 }
 
 ### 24. Try to Modify Non-existent Domain
-POST http://localhost:3000/api/registration/modify
+POST http://localhost:3001/api/registration/modify
 Content-Type: application/json
 
 {
@@ -391,7 +427,7 @@ Content-Type: application/json
 }
 
 ### 25. Try to Create DNS Zone with Invalid Records
-POST http://localhost:3000/api/dns/create-zone
+POST http://localhost:3001/api/dns/create-zone
 Content-Type: application/json
 
 {
@@ -425,4 +461,4 @@ Content-Type: application/json
 # OPENSRS_TEST_MODE=true
 # OPENSRS_TEST_HOST=https://horizon.opensrs.net:55443
 # OPENSRS_LIVE_HOST=https://rr-n1-tor.opensrs.net:55443
-# PORT=3000
+# PORT=3001

@@ -1,142 +1,41 @@
 const express = require('express');
 const router = express.Router();
-
-/**
- * @swagger
- * /api/dns/create-zone:
- *   post:
- *     summary: Create DNS zone for domain
- *     description: Create a new DNS zone with initial records
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - domain
- *             properties:
- *               domain:
- *                 type: string
- *                 example: "example.com"
- *               records:
- *                 type: array
- *                 items:
- *                   $ref: '#/components/schemas/DnsRecord'
- *     responses:
- *       200:
- *         description: DNS zone created successfully
- *       400:
- *         description: Invalid request parameters
- *       500:
- *         description: DNS zone creation failed
- */
-router.post('/create-zone', async (req, res) => {
-  try {
-    const { domain, records = [] } = req.body;
-
-    if (!domain) {
-      return res.status(400).json({
-        success: false,
-        error: 'Missing required field: domain'
-      });
-    }
-
-    // Validate DNS records format
-    for (const record of records) {
-      if (!record.type || !record.address) {
-        return res.status(400).json({
-          success: false,
-          error: 'Each DNS record must have type and address fields'
-        });
-      }
-      
-      // Validate MX records have priority
-      if (record.type === 'MX' && !record.priority) {
-        return res.status(400).json({
-          success: false,
-          error: 'MX records must include a priority field'
-        });
-      }
-    }
-
-    console.log('🔧 Creating DNS zone for domain:', domain);
-    console.log('🔧 Records to create:', JSON.stringify(records, null, 2));
-
-    // First check if domain exists by trying to get its info
-    try {
-      const domainCheck = await req.opensrsClient.lookupDomain(domain);
-      console.log('🔍 Domain lookup result:', domainCheck);
-      
-      if (!domainCheck.success) {
-        return res.status(400).json({
-          success: false,
-          error: `Domain ${domain} does not exist in your OpenSRS account or is not available`,
-          details: domainCheck
-        });
-      }
-    } catch (domainCheckError) {
-      console.warn('⚠️ Could not verify domain existence:', domainCheckError.message);
-    }
-
-    const result = await req.opensrsClient.createDnsZone(domain, records);
-    
-    res.json({
-      success: true,
-      data: result,
-      timestamp: new Date().toISOString()
-    });
-
-  } catch (error) {
-    console.error('DNS zone creation error:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-/**
- * @swagger
- * /api/dns/get-zone/{domain}:
- *   get:
- *     summary: Get DNS zone records
- *     description: Retrieve all DNS records for a domain
- *     parameters:
- *       - in: path
- *         name: domain
- *         required: true
- *         schema:
- *           type: string
- *         example: "example.com"
- *     responses:
- *       200:
- *         description: DNS zone records retrieved successfully
- *       400:
- *         description: Invalid domain parameter
- *       500:
- *         description: DNS zone retrieval failed
- */
 router.get('/get-zone/:domain', async (req, res) => {
   try {
     const { domain } = req.params;
-
+    
     if (!domain) {
       return res.status(400).json({
         success: false,
-        error: 'Missing required parameter: domain'
+        error: 'Domain is required',
+        timestamp: new Date().toISOString()
       });
     }
 
+    
     const result = await req.opensrsClient.getDnsZone(domain);
     
-    res.json({
-      success: true,
-      data: result,
-      timestamp: new Date().toISOString()
-    });
-
+    if (result.success) {
+      res.json({
+        success: true,
+        data: {
+          domain: domain,
+          records: result.data.records || [],
+          recordCount: result.data.records ? result.data.records.length : 0
+        },
+        responseCode: result.responseCode,
+        responseText: result.responseText,
+        timestamp: new Date().toISOString()
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: result.error || 'Failed to retrieve DNS zone',
+        responseCode: result.responseCode,
+        responseText: result.responseText,
+        timestamp: new Date().toISOString()
+      });
+    }
   } catch (error) {
     console.error('DNS zone retrieval error:', error);
     res.status(500).json({
@@ -147,66 +46,43 @@ router.get('/get-zone/:domain', async (req, res) => {
   }
 });
 
-/**
- * @swagger
- * /api/dns/set-zone:
- *   post:
- *     summary: Set/Update DNS zone records
- *     description: Replace all DNS records for a domain
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - domain
- *               - records
- *             properties:
- *               domain:
- *                 type: string
- *                 example: "example.com"
- *               records:
- *                 type: array
- *                 items:
- *                   $ref: '#/components/schemas/DnsRecord'
- *     responses:
- *       200:
- *         description: DNS zone updated successfully
- *       400:
- *         description: Invalid request parameters
- *       500:
- *         description: DNS zone update failed
- */
 router.post('/set-zone', async (req, res) => {
   try {
     const { domain, records } = req.body;
-
-    if (!domain || !records || !Array.isArray(records)) {
+    
+    if (!domain || !Array.isArray(records)) {
       return res.status(400).json({
         success: false,
-        error: 'Missing required fields: domain, records (array)'
+        error: 'Domain and records array are required',
+        timestamp: new Date().toISOString()
       });
     }
 
-    // Validate DNS records format
-    for (const record of records) {
-      if (!record.type || !record.address) {
-        return res.status(400).json({
-          success: false,
-          error: 'Each DNS record must have type and address fields'
-        });
-      }
-    }
-
+    
     const result = await req.opensrsClient.setDnsZone(domain, records);
     
-    res.json({
-      success: true,
-      data: result,
-      timestamp: new Date().toISOString()
-    });
-
+    if (result.success) {
+      res.json({
+        success: true,
+        message: 'DNS zone updated successfully',
+        data: {
+          domain: domain,
+          recordCount: records.length,
+          records: records
+        },
+        responseCode: result.responseCode,
+        responseText: result.responseText,
+        timestamp: new Date().toISOString()
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: result.error || 'Failed to update DNS zone',
+        responseCode: result.responseCode,
+        responseText: result.responseText,
+        timestamp: new Date().toISOString()
+      });
+    }
   } catch (error) {
     console.error('DNS zone update error:', error);
     res.status(500).json({
@@ -217,141 +93,91 @@ router.post('/set-zone', async (req, res) => {
   }
 });
 
-/**
- * @swagger
- * /api/dns/add-record:
- *   post:
- *     summary: Add a single DNS record
- *     description: |
- *       Add a new DNS record to existing zone (uses set_dns_zone internally).
- *       
- *       ⚠️ CRITICAL: OpenSRS set_dns_zone API REPLACES all existing records.
- *       This endpoint safely preserves existing records by:
- *       1. First retrieving all existing DNS records
- *       2. Adding the new record to the existing set
- *       3. Sending the complete record set to set_dns_zone
- *       
- *       This prevents accidental data loss when adding individual records.
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - domain
- *               - record
- *             properties:
- *               domain:
- *                 type: string
- *                 example: "example.com"
- *               record:
- *                 $ref: '#/components/schemas/DnsRecord'
- *     responses:
- *       200:
- *         description: DNS record added successfully
- *       400:
- *         description: Invalid request parameters
- *       500:
- *         description: DNS record addition failed or existing records could not be retrieved
- */
 router.post('/add-record', async (req, res) => {
   try {
     const { domain, record } = req.body;
-
-    if (!domain || !record || !record.type) {
+    
+    if (!domain || !record) {
       return res.status(400).json({
         success: false,
-        error: 'Missing required fields: domain, record.type'
+        error: 'Domain and record are required',
+        timestamp: new Date().toISOString()
       });
     }
 
-    // Validate record has either value or address
-    if (!record.value && !record.address) {
+    // Validate record structure
+    if (!record.type || !record.address) {
       return res.status(400).json({
         success: false,
-        error: 'Record must have either value or address field'
+        error: 'Record must have type and address',
+        timestamp: new Date().toISOString()
       });
     }
 
-    console.log('🔍 Adding DNS record for domain:', domain);
-    console.log('🔍 New record to add:', JSON.stringify(record, null, 2));
-
-    // Get existing records first - this is CRITICAL to prevent overwriting
-    console.log('🔍 CRITICAL: Getting existing DNS records to prevent overwriting...');
+    
+    // Step 1: Get existing DNS records
     const existingZone = await req.opensrsClient.getDnsZone(domain);
-    let existingRecords = [];
     
-    console.log('🔍 Get DNS zone response:', JSON.stringify(existingZone, null, 2));
-    
-    if (existingZone.success && existingZone.data) {
-      // Check different possible locations for records in the response
-      if (existingZone.data.records) {
-        existingRecords = existingZone.data.records;
-        console.log('✅ Found existing records in data.records:', existingRecords.length);
-      } else if (existingZone.data.attributes && existingZone.data.attributes.records) {
-        existingRecords = existingZone.data.attributes.records;
-        console.log('✅ Found existing records in data.attributes.records:', existingRecords.length);
-      } else if (existingZone.attributes && existingZone.attributes.records) {
-        existingRecords = existingZone.attributes.records;
-        console.log('✅ Found existing records in attributes.records:', existingRecords.length);
-      } else {
-        console.log('⚠️ No records found in expected locations');
-        console.log('🔍 Full data structure:', JSON.stringify(existingZone.data, null, 2));
-      }
-      
-      console.log('🔍 Existing records:', JSON.stringify(existingRecords, null, 2));
-    } else {
-      console.log('⚠️ No existing records found or getDnsZone failed');
-      console.log('🔍 Success:', existingZone.success);
-      console.log('🔍 Data:', existingZone.data);
-      console.log('🔍 Full response:', JSON.stringify(existingZone, null, 2));
-      
-      // If we can't get existing records, we should not proceed to avoid data loss
-      if (!existingZone.success) {
-        return res.status(500).json({
-          success: false,
-          error: 'Failed to retrieve existing DNS records. Cannot safely add new record without risking data loss.',
-          details: existingZone,
-          timestamp: new Date().toISOString()
-        });
-      }
+    if (!existingZone.success) {
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to retrieve existing DNS records: ' + (existingZone.error || 'Unknown error'),
+        responseCode: existingZone.responseCode,
+        responseText: existingZone.responseText,
+        timestamp: new Date().toISOString()
+      });
     }
 
-    // Convert record to our internal format
-    const newRecord = {
-      type: record.type.toUpperCase(),
-      subdomain: record.host || record.subdomain || '',
-      address: record.value || record.address,
-      ttl: record.ttl || 3600
-    };
-
-    // Add type-specific fields
-    if (record.priority) newRecord.priority = record.priority;
-    if (record.weight) newRecord.weight = record.weight;
-    if (record.port) newRecord.port = record.port;
-
-    // Add the new record to existing records
-    const updatedRecords = [...existingRecords, newRecord];
-    console.log('🔍 Updated records count:', updatedRecords.length);
-    console.log('🔍 Existing records count:', existingRecords.length);
-    console.log('🔍 New record being added:', JSON.stringify(newRecord, null, 2));
-    console.log('🔍 All records to set (existing + new):', JSON.stringify(updatedRecords, null, 2));
-    console.log('⚠️ WARNING: Using set_dns_zone which REPLACES all records. This is why we retrieved existing records first.');
-
-    // Set the entire zone with updated records (this REPLACES all existing records)
-    console.log('🔧 Calling setDnsZone with', updatedRecords.length, 'total records');
-    const result = await req.opensrsClient.setDnsZone(domain, updatedRecords);
+    // Step 2: Combine existing records with new record
+    const existingRecords = existingZone.data.records || [];
     
-    res.json({
-      success: result.success,
-      data: result.data,
-      message: result.success ? 'DNS record added successfully' : 'Failed to add DNS record',
-      responseCode: result.responseCode,
-      responseText: result.responseText,
-      timestamp: new Date().toISOString()
-    });
-
+    // Add TTL default if not specified
+    if (!record.ttl) {
+      record.ttl = 3600;
+    }
+    
+    const allRecords = [...existingRecords, record];
+    
+    // Step 3: Update DNS zone with all records
+    const updateResult = await req.opensrsClient.setDnsZone(domain, allRecords);
+    
+    if (updateResult.success) {
+      res.json({
+        success: true,
+        message: 'DNS record added successfully',
+        data: {
+          domain: domain,
+          newRecord: record,
+          totalRecords: allRecords.length,
+          existingRecords: existingRecords.length,
+          workflow: {
+            step1_retrieve: {
+              success: true,
+              recordCount: existingRecords.length
+            },
+            step2_merge: {
+              success: true,
+              totalRecords: allRecords.length
+            },
+            step3_update: {
+              success: true,
+              responseCode: updateResult.responseCode
+            }
+          }
+        },
+        responseCode: updateResult.responseCode,
+        responseText: updateResult.responseText,
+        timestamp: new Date().toISOString()
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: updateResult.error || 'Failed to add DNS record',
+        responseCode: updateResult.responseCode,
+        responseText: updateResult.responseText,
+        timestamp: new Date().toISOString()
+      });
+    }
   } catch (error) {
     console.error('DNS record addition error:', error);
     res.status(500).json({
@@ -362,156 +188,90 @@ router.post('/add-record', async (req, res) => {
   }
 });
 
-/**
- * @swagger
- * /api/dns/update-record:
- *   post:
- *     summary: Update a single DNS record
- *     description: Update an existing DNS record (uses set_dns_zone internally)
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - domain
- *               - record
- *             properties:
- *               domain:
- *                 type: string
- *                 example: "example.com"
- *               record:
- *                 $ref: '#/components/schemas/DnsRecord'
- *     responses:
- *       200:
- *         description: DNS record updated successfully
- *       400:
- *         description: Invalid request parameters
- *       500:
- *         description: DNS record update failed
- */
 router.post('/update-record', async (req, res) => {
   try {
-    const { domain, record } = req.body;
-
-    if (!domain || !record || !record.type) {
-      return res.status(400).json({
-        success: false,
-        error: 'Missing required fields: domain, record.type'
-      });
-    }
-
-    // Validate record has either value or address
-    if (!record.value && !record.address) {
-      return res.status(400).json({
-        success: false,
-        error: 'Record must have either value or address field'
-      });
-    }
-
-    console.log('🔍 Updating DNS record for domain:', domain);
-    console.log('🔍 Record to update:', JSON.stringify(record, null, 2));
-
-    // Get existing records first - this is CRITICAL to prevent overwriting
-    console.log('🔍 CRITICAL: Getting existing DNS records to prevent overwriting...');
-    const existingZone = await req.opensrsClient.getDnsZone(domain);
-    let existingRecords = [];
+    const { domain, oldRecord, newRecord } = req.body;
     
-    console.log('🔍 Get DNS zone response:', JSON.stringify(existingZone, null, 2));
-    
-    if (existingZone.success && existingZone.data) {
-      // Check different possible locations for records in the response
-      if (existingZone.data.records) {
-        existingRecords = existingZone.data.records;
-        console.log('✅ Found existing records in data.records:', existingRecords.length);
-      } else if (existingZone.data.attributes && existingZone.data.attributes.records) {
-        existingRecords = existingZone.data.attributes.records;
-        console.log('✅ Found existing records in data.attributes.records:', existingRecords.length);
-      } else if (existingZone.attributes && existingZone.attributes.records) {
-        existingRecords = existingZone.attributes.records;
-        console.log('✅ Found existing records in attributes.records:', existingRecords.length);
-      } else {
-        console.log('⚠️ No records found in expected locations');
-        console.log('🔍 Full data structure:', JSON.stringify(existingZone.data, null, 2));
-      }
-      
-      console.log('🔍 Existing records:', JSON.stringify(existingRecords, null, 2));
-    } else {
-      console.log('⚠️ No existing records found or getDnsZone failed');
-      console.log('🔍 Success:', existingZone.success);
-      console.log('🔍 Data:', existingZone.data);
-      console.log('🔍 Full response:', JSON.stringify(existingZone, null, 2));
-      
-      // If we can't get existing records, we should not proceed to avoid data loss
-      if (!existingZone.success) {
-        return res.status(500).json({
-          success: false,
-          error: 'Failed to retrieve existing DNS records. Cannot safely update record without risking data loss.',
-          details: existingZone,
-          timestamp: new Date().toISOString()
-        });
-      }
-      
+    if (!domain || !oldRecord || !newRecord) {
       return res.status(400).json({
         success: false,
-        error: 'No existing DNS zone found. Use add-record instead.',
+        error: 'Domain, oldRecord, and newRecord are required',
         timestamp: new Date().toISOString()
       });
     }
 
-    // Convert record to our internal format
-    const updatedRecord = {
-      type: record.type.toUpperCase(),
-      subdomain: record.host || record.subdomain || '',
-      address: record.value || record.address,
-      ttl: record.ttl || 3600
-    };
-
-    // Add type-specific fields
-    if (record.priority) updatedRecord.priority = record.priority;
-    if (record.weight) updatedRecord.weight = record.weight;
-    if (record.port) updatedRecord.port = record.port;
-
-    // Find and replace the existing record (match by type and subdomain)
-    const recordKey = `${updatedRecord.type}:${updatedRecord.subdomain}`;
-    const updatedRecords = existingRecords.map(existingRecord => {
-      const existingKey = `${existingRecord.type}:${existingRecord.subdomain}`;
-      return existingKey === recordKey ? updatedRecord : existingRecord;
-    });
-
-    // If no matching record found, add it
-    const recordExists = existingRecords.some(existingRecord => {
-      const existingKey = `${existingRecord.type}:${existingRecord.subdomain}`;
-      return existingKey === recordKey;
-    });
-
-    if (!recordExists) {
-      updatedRecords.push(updatedRecord);
-      console.log('🔍 Record not found, adding as new record');
-    } else {
-      console.log('🔍 Record found, updating existing record');
+    
+    // Step 1: Get existing DNS records
+    const existingZone = await req.opensrsClient.getDnsZone(domain);
+    
+    if (!existingZone.success) {
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to retrieve existing DNS records: ' + (existingZone.error || 'Unknown error'),
+        timestamp: new Date().toISOString()
+      });
     }
 
-    console.log('🔍 Updated records count:', updatedRecords.length);
-    console.log('🔍 Existing records count:', existingRecords.length);
-    console.log('🔍 Record being updated:', JSON.stringify(updatedRecord, null, 2));
-    console.log('🔍 All records to set (existing + updated):', JSON.stringify(updatedRecords, null, 2));
-    console.log('⚠️ WARNING: Using set_dns_zone which REPLACES all records. This is why we retrieved existing records first.');
-
-    // Set the entire zone with updated records (this REPLACES all existing records)
-    console.log('🔧 Calling setDnsZone with', updatedRecords.length, 'total records');
-    const result = await req.opensrsClient.setDnsZone(domain, updatedRecords);
+    const existingRecords = existingZone.data.records || [];
     
-    res.json({
-      success: result.success,
-      data: result.data,
-      message: result.success ? 'DNS record updated successfully' : 'Failed to update DNS record',
-      responseCode: result.responseCode,
-      responseText: result.responseText,
-      timestamp: new Date().toISOString()
+    // Step 2: Find and replace the record
+    let recordFound = false;
+    const updatedRecords = existingRecords.map(record => {
+      // Match by type and subdomain primarily
+      if (record.type === oldRecord.type && 
+          (record.subdomain || '') === (oldRecord.subdomain || '')) {
+        
+        // For more specific matching, also check address if provided
+        if (oldRecord.address && record.address !== oldRecord.address) {
+          return record; // Not the record we're looking for
+        }
+        
+        recordFound = true;
+        // Add TTL default if not specified in new record
+        if (!newRecord.ttl) {
+          newRecord.ttl = record.ttl || 3600;
+        }
+        return newRecord;
+      }
+      return record;
     });
-
+    
+    if (!recordFound) {
+      return res.status(404).json({
+        success: false,
+        error: 'Record to update not found',
+        searchCriteria: oldRecord,
+        availableRecords: existingRecords,
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    // Step 3: Update DNS zone with modified records
+    const updateResult = await req.opensrsClient.setDnsZone(domain, updatedRecords);
+    
+    if (updateResult.success) {
+      res.json({
+        success: true,
+        message: 'DNS record updated successfully',
+        data: {
+          domain: domain,
+          oldRecord: oldRecord,
+          newRecord: newRecord,
+          totalRecords: updatedRecords.length
+        },
+        responseCode: updateResult.responseCode,
+        responseText: updateResult.responseText,
+        timestamp: new Date().toISOString()
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: updateResult.error || 'Failed to update DNS record',
+        responseCode: updateResult.responseCode,
+        responseText: updateResult.responseText,
+        timestamp: new Date().toISOString()
+      });
+    }
   } catch (error) {
     console.error('DNS record update error:', error);
     res.status(500).json({
@@ -522,46 +282,394 @@ router.post('/update-record', async (req, res) => {
   }
 });
 
-/**
- * @swagger
- * /api/dns/delete-zone/{domain}:
- *   delete:
- *     summary: Delete DNS zone
- *     description: Delete entire DNS zone for a domain
- *     parameters:
- *       - in: path
- *         name: domain
- *         required: true
- *         schema:
- *           type: string
- *         example: "example.com"
- *     responses:
- *       200:
- *         description: DNS zone deleted successfully
- *       400:
- *         description: Invalid domain parameter
- *       500:
- *         description: DNS zone deletion failed
- */
-router.delete('/delete-zone/:domain', async (req, res) => {
+router.post('/delete-record', async (req, res) => {
   try {
-    const { domain } = req.params;
-
-    if (!domain) {
+    const { domain, record } = req.body;
+    
+    if (!domain || !record) {
       return res.status(400).json({
         success: false,
-        error: 'Missing required parameter: domain'
+        error: 'Domain and record are required',
+        timestamp: new Date().toISOString()
       });
     }
 
-    const result = await req.opensrsClient.deleteDnsZone(domain);
     
-    res.json({
-      success: true,
-      data: result,
+    // Step 1: Get existing DNS records
+    const existingZone = await req.opensrsClient.getDnsZone(domain);
+    
+    if (!existingZone.success) {
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to retrieve existing DNS records: ' + (existingZone.error || 'Unknown error'),
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const existingRecords = existingZone.data.records || [];
+    
+    // Step 2: Filter out the record to delete
+    let recordFound = false;
+    const remainingRecords = existingRecords.filter(existingRecord => {
+      // Match by type and subdomain primarily
+      const typeMatch = existingRecord.type === record.type;
+      const subdomainMatch = (existingRecord.subdomain || '') === (record.subdomain || '');
+      
+      // If address is specified, also match by address
+      let addressMatch = true;
+      if (record.address) {
+        addressMatch = existingRecord.address === record.address;
+      }
+      
+      const isMatch = typeMatch && subdomainMatch && addressMatch;
+      
+      if (isMatch) {
+        recordFound = true;
+        return false; // Filter out this record
+      }
+      return true; // Keep this record
+    });
+    
+    if (!recordFound) {
+      return res.status(404).json({
+        success: false,
+        error: 'Record to delete not found',
+        searchCriteria: record,
+        availableRecords: existingRecords,
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    // Step 3: Update DNS zone with remaining records
+    const updateResult = await req.opensrsClient.setDnsZone(domain, remainingRecords);
+    
+    if (updateResult.success) {
+      res.json({
+        success: true,
+        message: 'DNS record deleted successfully',
+        data: {
+          domain: domain,
+          deletedRecord: record,
+          remainingRecords: remainingRecords.length,
+          originalRecords: existingRecords.length
+        },
+        responseCode: updateResult.responseCode,
+        responseText: updateResult.responseText,
+        timestamp: new Date().toISOString()
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: updateResult.error || 'Failed to delete DNS record',
+        responseCode: updateResult.responseCode,
+        responseText: updateResult.responseText,
+        timestamp: new Date().toISOString()
+      });
+    }
+  } catch (error) {
+    console.error('DNS record deletion error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
       timestamp: new Date().toISOString()
     });
+  }
+});
 
+router.post('/manage-record', async (req, res) => {
+  try {
+    const { domain, record, action, oldRecord } = req.body;
+    
+    if (!domain || !record || !action) {
+      return res.status(400).json({
+        success: false,
+        error: 'Domain, record, and action are required',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    if (!['add', 'update', 'delete'].includes(action)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Action must be one of: add, update, delete',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    if (action === 'update' && !oldRecord) {
+      return res.status(400).json({
+        success: false,
+        error: 'oldRecord is required for update action',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    
+    const workflow = {
+      step1_retrieve: null,
+      step2_prepare: null,
+      step3_merge: null,
+      step4_update: null,
+      step5_confirm: null
+    };
+    
+    // Step 1: Retrieve existing DNS records
+    workflow.step1_retrieve = { timestamp: new Date().toISOString() };
+    
+    const existingZone = await req.opensrsClient.getDnsZone(domain);
+    
+    if (!existingZone.success) {
+      workflow.step1_retrieve.success = false;
+      workflow.step1_retrieve.error = existingZone.error;
+      
+      return res.status(500).json({
+        success: false,
+        error: 'Step 1 failed: Could not retrieve existing DNS records',
+        workflow: workflow,
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    const existingRecords = existingZone.data.records || [];
+    workflow.step1_retrieve.success = true;
+    workflow.step1_retrieve.recordCount = existingRecords.length;
+    workflow.step1_retrieve.records = existingRecords;
+    
+    
+    // Step 2: Prepare new record
+    workflow.step2_prepare = { timestamp: new Date().toISOString(), action: action };
+    
+    let preparedRecord = { ...record };
+    if (!preparedRecord.ttl) {
+      preparedRecord.ttl = 3600;
+    }
+    
+    workflow.step2_prepare.success = true;
+    workflow.step2_prepare.record = preparedRecord;
+    
+    
+    // Step 3: Merge/modify records based on action
+    workflow.step3_merge = { timestamp: new Date().toISOString(), action: action };
+    
+    let finalRecords = [];
+    let recordFound = false;
+    
+    switch (action) {
+      case 'add':
+        finalRecords = [...existingRecords, preparedRecord];
+        workflow.step3_merge.operation = 'Added new record to existing set';
+        workflow.step3_merge.success = true;
+        break;
+        
+      case 'update':
+        finalRecords = existingRecords.map(existingRecord => {
+          const typeMatch = existingRecord.type === oldRecord.type;
+          const subdomainMatch = (existingRecord.subdomain || '') === (oldRecord.subdomain || '');
+          const addressMatch = !oldRecord.address || existingRecord.address === oldRecord.address;
+          
+          if (typeMatch && subdomainMatch && addressMatch) {
+            recordFound = true;
+            return preparedRecord;
+          }
+          return existingRecord;
+        });
+        
+        if (!recordFound) {
+          workflow.step3_merge.success = false;
+          workflow.step3_merge.error = 'Record to update not found';
+          
+          return res.status(404).json({
+            success: false,
+            error: 'Step 3 failed: Record to update not found',
+            searchCriteria: oldRecord,
+            workflow: workflow,
+            timestamp: new Date().toISOString()
+          });
+        }
+        
+        workflow.step3_merge.operation = 'Replaced existing record with updated version';
+        workflow.step3_merge.success = true;
+        break;
+        
+      case 'delete':
+        finalRecords = existingRecords.filter(existingRecord => {
+          const typeMatch = existingRecord.type === record.type;
+          const subdomainMatch = (existingRecord.subdomain || '') === (record.subdomain || '');
+          const addressMatch = !record.address || existingRecord.address === record.address;
+          
+          const isMatch = typeMatch && subdomainMatch && addressMatch;
+          if (isMatch) {
+            recordFound = true;
+            return false; // Remove this record
+          }
+          return true; // Keep this record
+        });
+        
+        if (!recordFound) {
+          workflow.step3_merge.success = false;
+          workflow.step3_merge.error = 'Record to delete not found';
+          
+          return res.status(404).json({
+            success: false,
+            error: 'Step 3 failed: Record to delete not found',
+            searchCriteria: record,
+            workflow: workflow,
+            timestamp: new Date().toISOString()
+          });
+        }
+        
+        workflow.step3_merge.operation = 'Removed specified record from set';
+        workflow.step3_merge.success = true;
+        break;
+    }
+    
+    workflow.step3_merge.originalCount = existingRecords.length;
+    workflow.step3_merge.finalCount = finalRecords.length;
+    
+    
+    // Step 4: Update DNS zone
+    workflow.step4_update = { timestamp: new Date().toISOString() };
+    
+    const updateResult = await req.opensrsClient.setDnsZone(domain, finalRecords);
+    
+    if (!updateResult.success) {
+      workflow.step4_update.success = false;
+      workflow.step4_update.error = updateResult.error;
+      workflow.step4_update.responseCode = updateResult.responseCode;
+      
+      return res.status(500).json({
+        success: false,
+        error: 'Step 4 failed: Could not update DNS zone',
+        workflow: workflow,
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    workflow.step4_update.success = true;
+    workflow.step4_update.responseCode = updateResult.responseCode;
+    workflow.step4_update.responseText = updateResult.responseText;
+    
+    
+    // Step 5: Confirm operation
+    workflow.step5_confirm = { 
+      timestamp: new Date().toISOString(),
+      success: true,
+      operation: `${action} operation completed successfully`,
+      finalRecordCount: finalRecords.length
+    };
+    
+    
+    // Return comprehensive response
+    res.json({
+      success: true,
+      message: `DNS record ${action} completed successfully using complete 5-step workflow`,
+      data: {
+        domain: domain,
+        action: action,
+        record: preparedRecord,
+        ...(action === 'update' && { oldRecord: oldRecord }),
+        finalRecordCount: finalRecords.length,
+        originalRecordCount: existingRecords.length
+      },
+      workflow: workflow,
+      responseCode: updateResult.responseCode,
+      responseText: updateResult.responseText,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('DNS record management error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      workflow: workflow || {},
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+router.post('/create-zone', async (req, res) => {
+  try {
+    const { domain, records = [] } = req.body;
+    
+    if (!domain) {
+      return res.status(400).json({
+        success: false,
+        error: 'Domain is required',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    
+    const result = await req.opensrsClient.createDnsZone(domain, records);
+    
+    if (result.success) {
+      res.json({
+        success: true,
+        message: 'DNS zone created successfully',
+        data: {
+          domain: domain,
+          recordCount: records.length,
+          records: records
+        },
+        responseCode: result.responseCode,
+        responseText: result.responseText,
+        timestamp: new Date().toISOString()
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: result.error || 'Failed to create DNS zone',
+        responseCode: result.responseCode,
+        responseText: result.responseText,
+        timestamp: new Date().toISOString()
+      });
+    }
+  } catch (error) {
+    console.error('DNS zone creation error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+router.delete('/delete-zone/:domain', async (req, res) => {
+  try {
+    const { domain } = req.params;
+    
+    if (!domain) {
+      return res.status(400).json({
+        success: false,
+        error: 'Domain is required',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    
+    const result = await req.opensrsClient.deleteDnsZone(domain);
+    
+    if (result.success) {
+      res.json({
+        success: true,
+        message: 'DNS zone deleted successfully',
+        data: {
+          domain: domain
+        },
+        responseCode: result.responseCode,
+        responseText: result.responseText,
+        timestamp: new Date().toISOString()
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: result.error || 'Failed to delete DNS zone',
+        responseCode: result.responseCode,
+        responseText: result.responseText,
+        timestamp: new Date().toISOString()
+      });
+    }
   } catch (error) {
     console.error('DNS zone deletion error:', error);
     res.status(500).json({
@@ -573,4 +681,3 @@ router.delete('/delete-zone/:domain', async (req, res) => {
 });
 
 module.exports = router;
-

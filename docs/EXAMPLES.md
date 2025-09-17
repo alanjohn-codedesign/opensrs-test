@@ -17,7 +17,7 @@ This document provides practical examples for common use cases with the OpenSRS 
 
 ```bash
 # Search for domain suggestions
-curl -X POST http://localhost:3000/api/domains/search \
+curl -X POST http://localhost:3001/api/domains/search \
   -H "Content-Type: application/json" \
   -d '{
     "search_query": "mycompany"
@@ -54,7 +54,7 @@ curl -X POST http://localhost:3000/api/domains/search \
 
 ```bash
 # Check if a specific domain is available
-curl -X POST http://localhost:3000/api/domains/lookup \
+curl -X POST http://localhost:3001/api/domains/lookup \
   -H "Content-Type: application/json" \
   -d '{
     "domain": "mycompany.com"
@@ -65,14 +65,14 @@ curl -X POST http://localhost:3000/api/domains/lookup \
 
 ```bash
 # Get price for a specific domain
-curl http://localhost:3000/api/domains/mycompany.com/price
+curl http://localhost:3001/api/domains/mycompany.com/price
 ```
 
 ### Get Domain Suggestions
 
 ```bash
 # Get alternative domain suggestions
-curl -X POST http://localhost:3000/api/domains/suggestions \
+curl -X POST http://localhost:3001/api/domains/suggestions \
   -H "Content-Type: application/json" \
   -d '{
     "search_string": "tech"
@@ -85,7 +85,7 @@ curl -X POST http://localhost:3000/api/domains/suggestions \
 
 ```bash
 # Create a DNS zone with basic records
-curl -X POST http://localhost:3000/api/dns/create-zone \
+curl -X POST http://localhost:3001/api/dns/create-zone \
   -H "Content-Type: application/json" \
   -d '{
     "domain": "mycompany.com",
@@ -117,7 +117,7 @@ curl -X POST http://localhost:3000/api/dns/create-zone \
 
 ```bash
 # Add an A record
-curl -X POST http://localhost:3000/api/dns/add-record \
+curl -X POST http://localhost:3001/api/dns/add-record \
   -H "Content-Type: application/json" \
   -d '{
     "domain": "mycompany.com",
@@ -130,7 +130,7 @@ curl -X POST http://localhost:3000/api/dns/add-record \
   }'
 
 # Add a CNAME record
-curl -X POST http://localhost:3000/api/dns/add-record \
+curl -X POST http://localhost:3001/api/dns/add-record \
   -H "Content-Type: application/json" \
   -d '{
     "domain": "mycompany.com",
@@ -143,7 +143,7 @@ curl -X POST http://localhost:3000/api/dns/add-record \
   }'
 
 # Add a TXT record for SPF
-curl -X POST http://localhost:3000/api/dns/add-record \
+curl -X POST http://localhost:3001/api/dns/add-record \
   -H "Content-Type: application/json" \
   -d '{
     "domain": "mycompany.com",
@@ -160,7 +160,7 @@ curl -X POST http://localhost:3000/api/dns/add-record \
 
 ```bash
 # Update an existing A record
-curl -X POST http://localhost:3000/api/dns/update-record \
+curl -X POST http://localhost:3001/api/dns/update-record \
   -H "Content-Type: application/json" \
   -d '{
     "domain": "mycompany.com",
@@ -177,14 +177,14 @@ curl -X POST http://localhost:3000/api/dns/update-record \
 
 ```bash
 # Retrieve all DNS records for a domain
-curl http://localhost:3000/api/dns/get-zone/mycompany.com
+curl http://localhost:3001/api/dns/get-zone/mycompany.com
 ```
 
 ### Replace All DNS Records
 
 ```bash
 # Replace all DNS records (use with caution)
-curl -X POST http://localhost:3000/api/dns/set-zone \
+curl -X POST http://localhost:3001/api/dns/set-zone \
   -H "Content-Type: application/json" \
   -d '{
     "domain": "mycompany.com",
@@ -211,7 +211,7 @@ curl -X POST http://localhost:3000/api/dns/set-zone \
 
 ```bash
 # Enable auto-renewal and disable let-expire
-curl -X PUT http://localhost:3000/api/domains/mycompany.com/autorenew \
+curl -X PUT http://localhost:3001/api/domains/mycompany.com/autorenew \
   -H "Content-Type: application/json" \
   -d '{
     "autoRenew": true,
@@ -223,7 +223,7 @@ curl -X PUT http://localhost:3000/api/domains/mycompany.com/autorenew \
 
 ```bash
 # Disable auto-renewal and enable let-expire
-curl -X PUT http://localhost:3000/api/domains/mycompany.com/autorenew \
+curl -X PUT http://localhost:3001/api/domains/mycompany.com/autorenew \
   -H "Content-Type: application/json" \
   -d '{
     "autoRenew": false,
@@ -235,7 +235,7 @@ curl -X PUT http://localhost:3000/api/domains/mycompany.com/autorenew \
 
 ```bash
 # Enable WHOIS privacy protection
-curl -X PUT http://localhost:3000/api/domains/mycompany.com/whois-privacy \
+curl -X PUT http://localhost:3001/api/domains/mycompany.com/whois-privacy \
   -H "Content-Type: application/json" \
   -d '{
     "state": "enable"
@@ -246,7 +246,7 @@ curl -X PUT http://localhost:3000/api/domains/mycompany.com/whois-privacy \
 
 ```bash
 # Disable WHOIS privacy protection
-curl -X PUT http://localhost:3000/api/domains/mycompany.com/whois-privacy \
+curl -X PUT http://localhost:3001/api/domains/mycompany.com/whois-privacy \
   -H "Content-Type: application/json" \
   -d '{
     "state": "disable"
@@ -267,17 +267,17 @@ echo "Setting up domain: $DOMAIN"
 
 # 1. Check domain availability
 echo "Checking domain availability..."
-curl -X POST http://localhost:3000/api/domains/lookup \
+curl -X POST http://localhost:3001/api/domains/lookup \
   -H "Content-Type: application/json" \
   -d "{\"domain\": \"$DOMAIN\"}"
 
 # 2. Get domain pricing
 echo "Getting domain pricing..."
-curl http://localhost:3000/api/domains/$DOMAIN/price
+curl http://localhost:3001/api/domains/$DOMAIN/price
 
 # 3. Create DNS zone
 echo "Creating DNS zone..."
-curl -X POST http://localhost:3000/api/dns/create-zone \
+curl -X POST http://localhost:3001/api/dns/create-zone \
   -H "Content-Type: application/json" \
   -d "{
     \"domain\": \"$DOMAIN\",
@@ -299,13 +299,13 @@ curl -X POST http://localhost:3000/api/dns/create-zone \
 
 # 4. Enable auto-renewal
 echo "Enabling auto-renewal..."
-curl -X PUT http://localhost:3000/api/domains/$DOMAIN/autorenew \
+curl -X PUT http://localhost:3001/api/domains/$DOMAIN/autorenew \
   -H "Content-Type: application/json" \
   -d '{"autoRenew": true, "letExpire": false}'
 
 # 5. Enable WHOIS privacy
 echo "Enabling WHOIS privacy..."
-curl -X PUT http://localhost:3000/api/domains/$DOMAIN/whois-privacy \
+curl -X PUT http://localhost:3001/api/domains/$DOMAIN/whois-privacy \
   -H "Content-Type: application/json" \
   -d '{"state": "enable"}'
 
@@ -324,7 +324,7 @@ echo "Setting up email for domain: $DOMAIN"
 
 # 1. Add MX record
 echo "Adding MX record..."
-curl -X POST http://localhost:3000/api/dns/add-record \
+curl -X POST http://localhost:3001/api/dns/add-record \
   -H "Content-Type: application/json" \
   -d "{
     \"domain\": \"$DOMAIN\",
@@ -339,7 +339,7 @@ curl -X POST http://localhost:3000/api/dns/add-record \
 
 # 2. Add SPF record
 echo "Adding SPF record..."
-curl -X POST http://localhost:3000/api/dns/add-record \
+curl -X POST http://localhost:3001/api/dns/add-record \
   -H "Content-Type: application/json" \
   -d "{
     \"domain\": \"$DOMAIN\",
@@ -353,7 +353,7 @@ curl -X POST http://localhost:3000/api/dns/add-record \
 
 # 3. Add DKIM record (example)
 echo "Adding DKIM record..."
-curl -X POST http://localhost:3000/api/dns/add-record \
+curl -X POST http://localhost:3001/api/dns/add-record \
   -H "Content-Type: application/json" \
   -d "{
     \"domain\": \"$DOMAIN\",
@@ -385,7 +385,7 @@ for i in 1 2 3; do
   SERVER_IP="SERVER$i"
   echo "Adding server $i: ${!SERVER_IP}"
   
-  curl -X POST http://localhost:3000/api/dns/add-record \
+  curl -X POST http://localhost:3001/api/dns/add-record \
     -H "Content-Type: application/json" \
     -d "{
       \"domain\": \"$DOMAIN\",
@@ -410,7 +410,7 @@ const axios = require('axios');
 
 async function addDnsRecord(domain, record) {
   try {
-    const response = await axios.post('http://localhost:3000/api/dns/add-record', {
+    const response = await axios.post('http://localhost:3001/api/dns/add-record', {
       domain,
       record
     });
@@ -458,7 +458,7 @@ import requests
 import json
 
 def add_dns_record(domain, record):
-    url = 'http://localhost:3000/api/dns/add-record'
+    url = 'http://localhost:3001/api/dns/add-record'
     data = {
         'domain': domain,
         'record': record
@@ -509,12 +509,12 @@ for domain in "${DOMAINS[@]}"; do
   echo "Processing domain: $domain"
   
   # Check availability
-  curl -X POST http://localhost:3000/api/domains/lookup \
+  curl -X POST http://localhost:3001/api/domains/lookup \
     -H "Content-Type: application/json" \
     -d "{\"domain\": \"$domain\"}"
   
   # Create DNS zone
-  curl -X POST http://localhost:3000/api/dns/create-zone \
+  curl -X POST http://localhost:3001/api/dns/create-zone \
     -H "Content-Type: application/json" \
     -d "{
       \"domain\": \"$domain\",
@@ -544,11 +544,11 @@ echo "Migrating DNS records from $SOURCE_DOMAIN to $TARGET_DOMAIN"
 
 # 1. Get all records from source domain
 echo "Getting records from source domain..."
-SOURCE_RECORDS=$(curl -s http://localhost:3000/api/dns/get-zone/$SOURCE_DOMAIN | jq '.data.records')
+SOURCE_RECORDS=$(curl -s http://localhost:3001/api/dns/get-zone/$SOURCE_DOMAIN | jq '.data.records')
 
 # 2. Create zone for target domain
 echo "Creating zone for target domain..."
-curl -X POST http://localhost:3000/api/dns/create-zone \
+curl -X POST http://localhost:3001/api/dns/create-zone \
   -H "Content-Type: application/json" \
   -d "{
     \"domain\": \"$TARGET_DOMAIN\",
@@ -563,7 +563,7 @@ echo "Migration complete!"
 ```bash
 #!/bin/bash
 
-API_URL="http://localhost:3000"
+API_URL="http://localhost:3001"
 DOMAIN="mycompany.com"
 
 echo "Running health checks..."
@@ -596,7 +596,7 @@ echo "Health checks complete!"
 ```bash
 #!/bin/bash
 
-BASE_URL="http://localhost:3000/api"
+BASE_URL="http://localhost:3001/api"
 DOMAIN="testdomain.com"
 
 echo "Testing OpenSRS API endpoints..."

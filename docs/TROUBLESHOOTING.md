@@ -279,15 +279,15 @@ node -e "const client = require('./src/lib/opensrs-client'); console.log('Config
 
 ```bash
 # Test health endpoint
-curl http://localhost:3000/health
+curl http://localhost:3001/health
 
 # Test domain lookup
-curl -X POST http://localhost:3000/api/domains/lookup \
+curl -X POST http://localhost:3001/api/domains/lookup \
   -H "Content-Type: application/json" \
   -d '{"domain": "example.com"}'
 
 # Test DNS zone retrieval
-curl http://localhost:3000/api/dns/get-zone/example.com
+curl http://localhost:3001/api/dns/get-zone/example.com
 ```
 
 ## Performance Issues
@@ -309,7 +309,7 @@ curl http://localhost:3000/api/dns/get-zone/example.com
    ```javascript
    // Cache is enabled by default
    // Check cache stats
-   curl http://localhost:3000/api/domains/cache/stats
+   curl http://localhost:3001/api/domains/cache/stats
    ```
 
 3. Optimize DNS queries:
@@ -335,7 +335,7 @@ curl http://localhost:3000/api/dns/get-zone/example.com
    ```javascript
    // Adjust cache TTL
    const cache = new CacheManager({
-     defaultTTL: 300000, // 5 minutes
+     defaultTTL: 300100, // 5 minutes
      maxSize: 1000
    });
    ```
@@ -345,7 +345,7 @@ curl http://localhost:3000/api/dns/get-zone/example.com
    setInterval(() => {
      const used = process.memoryUsage();
      console.log('Memory usage:', used);
-   }, 30000);
+   }, 30010);
    ```
 
 ### 3. High CPU Usage
@@ -442,10 +442,10 @@ curl http://localhost:3000/api/dns/get-zone/example.com
 1. Check port availability:
    ```bash
    # Check if port is in use
-   lsof -i :3000
+   lsof -i :3001
    
    # Find available port
-   netstat -tulpn | grep :3000
+   netstat -tulpn | grep :3001
    ```
 
 2. Change port:
@@ -460,7 +460,7 @@ curl http://localhost:3000/api/dns/get-zone/example.com
 3. Kill existing processes:
    ```bash
    # Kill process using port
-   kill -9 $(lsof -t -i:3000)
+   kill -9 $(lsof -t -i:3001)
    ```
 
 ## OpenSRS-Specific Issues
@@ -528,7 +528,7 @@ curl http://localhost:3000/api/dns/get-zone/example.com
 **Solutions:**
 1. Create DNS zone first:
    ```bash
-   curl -X POST http://localhost:3000/api/dns/create-zone \
+   curl -X POST http://localhost:3001/api/dns/create-zone \
      -H "Content-Type: application/json" \
      -d '{"domain": "example.com", "records": []}'
    ```

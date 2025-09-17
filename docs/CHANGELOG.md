@@ -140,7 +140,7 @@ All notable changes to the OpenSRS API integration will be documented in this fi
 - `OPENSRS_TEST_MODE` - Enable test mode (true/false)
 - `OPENSRS_TEST_HOST` - Test API host URL
 - `OPENSRS_LIVE_HOST` - Live API host URL
-- `PORT` - Server port (default: 3000)
+- `PORT` - Server port (default: 3001)
 
 #### OpenSRS API Hosts
 - **Test**: `https://horizon.opensrs.net:55443`

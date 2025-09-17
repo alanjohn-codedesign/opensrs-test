@@ -39,7 +39,7 @@ OPENSRS_TEST_HOST=https://horizon.opensrs.net:55443
 OPENSRS_LIVE_HOST=https://rr-n1-tor.opensrs.net:55443
 
 # Server Configuration
-PORT=3000
+PORT=3001
 NODE_ENV=development
 ```
 
@@ -79,7 +79,7 @@ Set `OPENSRS_TEST_MODE=true` for testing, `false` for production.
 | `OPENSRS_TEST_MODE` | Enable test mode | Yes | true |
 | `OPENSRS_TEST_HOST` | Test API host | No | horizon.opensrs.net:55443 |
 | `OPENSRS_LIVE_HOST` | Live API host | No | rr-n1-tor.opensrs.net:55443 |
-| `PORT` | Server port | No | 3000 |
+| `PORT` | Server port | No | 3001 |
 | `NODE_ENV` | Environment | No | development |
 
 ### API Hosts
@@ -102,7 +102,7 @@ Set `OPENSRS_TEST_MODE=true` for testing, `false` for production.
 npm start
 ```
 
-The server will start on `http://localhost:3000`
+The server will start on `http://localhost:3001`
 
 ### Production Mode
 
@@ -131,7 +131,7 @@ pm2 startup
 ### 1. Health Check
 
 ```bash
-curl http://localhost:3000/health
+curl http://localhost:3001/health
 ```
 
 Expected response:
@@ -146,7 +146,7 @@ Expected response:
 ### 2. Test Domain Lookup
 
 ```bash
-curl -X POST http://localhost:3000/api/domains/lookup \
+curl -X POST http://localhost:3001/api/domains/lookup \
   -H "Content-Type: application/json" \
   -d '{"domain": "example.com"}'
 ```
@@ -154,7 +154,7 @@ curl -X POST http://localhost:3000/api/domains/lookup \
 ### 3. Test Domain Search
 
 ```bash
-curl -X POST http://localhost:3000/api/domains/search \
+curl -X POST http://localhost:3001/api/domains/search \
   -H "Content-Type: application/json" \
   -d '{"search_query": "test"}'
 ```

@@ -205,6 +205,9 @@ class OpenSRSClient {
           attributes.records = this.parseDnsRecords(recordsMatch[1]);
         }
         
+        // Parse domain-specific fields for frontend
+        this.parseDomainInfo(attributesContent, attributes);
+        
         // Extract suggestions data (for NAME_SUGGEST requests)
         this.parseSuggestionsData(attributesContent, attributes);
       }
@@ -228,6 +231,130 @@ class OpenSRSClient {
         rawResponse: xmlString?.substring(0, 500),
         data: null
       };
+    }
+  }
+
+  /**
+   * Parse domain-specific information from XML content for frontend display
+   */
+  parseDomainInfo(content, attributes) {
+    // Auto renew
+    const autoRenewMatch = content.match(/<item key="auto_renew">([01])<\/item>/);
+    if (autoRenewMatch) attributes.autoRenew = autoRenewMatch[1] === '1';
+    
+    // Let expire
+    const letExpireMatch = content.match(/<item key="let_expire">([01])<\/item>/);
+    if (letExpireMatch) attributes.letExpire = letExpireMatch[1] === '1';
+    
+    // Expiration date
+    const expireDateMatch = content.match(/<item key="expiredate">([^<]+)<\/item>/);
+    if (expireDateMatch) attributes.expirationDate = expireDateMatch[1];
+    
+    // Registry dates
+    const registryExpireDateMatch = content.match(/<item key="registry_expiredate">([^<]+)<\/item>/);
+    if (registryExpireDateMatch) attributes.registryExpirationDate = registryExpireDateMatch[1];
+    
+    const registryUpdateDateMatch = content.match(/<item key="registry_updatedate">([^<]+)<\/item>/);
+    if (registryUpdateDateMatch) attributes.registryUpdateDate = registryUpdateDateMatch[1];
+    
+    const registryCreateDateMatch = content.match(/<item key="registry_createdate">([^<]+)<\/item>/);
+    if (registryCreateDateMatch) attributes.registryCreateDate = registryCreateDateMatch[1];
+    
+    // Other domain fields
+    const affiliateIdMatch = content.match(/<item key="affiliate_id">([^<]+)<\/item>/);
+    if (affiliateIdMatch) attributes.affiliateId = affiliateIdMatch[1];
+    
+    const sponsoringRspMatch = content.match(/<item key="sponsoring_rsp">([^<]+)<\/item>/);
+    if (sponsoringRspMatch) attributes.sponsoringRegistrar = sponsoringRspMatch[1];
+    
+    const gdprConsentMatch = content.match(/<item key="gdpr_consent_status">([^<]+)<\/item>/);
+    if (gdprConsentMatch) attributes.gdprConsentStatus = gdprConsentMatch[1];
+    
+    // TLD data
+    const tldDataMatch = content.match(/<item key="tld_data">([^<]*)<\/item>/);
+    if (tldDataMatch) attributes.tldData = tldDataMatch[1];
+    
+    // Parse nameservers
+    this.parseNameservers(content, attributes);
+    
+    // Parse contact set
+    this.parseContactSet(content, attributes);
+  }
+
+  /**
+   * Parse nameservers from XML content
+   */
+  parseNameservers(content, attributes) {
+    const nameserverMatch = content.match(/<item key="nameserver_list">\s*<dt_array>(.*?)<\/dt_array>\s*<\/item>/s);
+    if (nameserverMatch) {
+      const nameservers = [];
+      const nsItems = nameserverMatch[1].match(/<item key="\d+">\s*<dt_assoc>(.*?)<\/dt_assoc>\s*<\/item>/gs);
+      
+      if (nsItems) {
+        nsItems.forEach(nsItem => {
+          const nameMatch = nsItem.match(/<item key="name">([^<]+)<\/item>/);
+          const sortOrderMatch = nsItem.match(/<item key="sortorder">([^<]+)<\/item>/);
+          const ipMatch = nsItem.match(/<item key="ipaddress">([^<]*)<\/item>/);
+          
+          if (nameMatch) {
+            nameservers.push({
+              name: nameMatch[1],
+              sortOrder: sortOrderMatch ? parseInt(sortOrderMatch[1]) : 0,
+              ipAddress: ipMatch ? ipMatch[1] : ''
+            });
+          }
+        });
+      }
+      
+      attributes.nameservers = nameservers;
+    }
+  }
+
+  /**
+   * Parse contact set from XML content
+   */
+  parseContactSet(content, attributes) {
+    const contactSetMatch = content.match(/<item key="contact_set">\s*<dt_assoc>(.*?)<\/dt_assoc>\s*<\/item>/s);
+    if (contactSetMatch) {
+      const contacts = {};
+      const contactTypes = ['owner', 'admin', 'tech', 'billing'];
+      
+      contactTypes.forEach(type => {
+        const contactMatch = contactSetMatch[1].match(new RegExp(`<item key="${type}">\\s*<dt_assoc>(.*?)<\\/dt_assoc>\\s*<\\/item>`, 's'));
+        if (contactMatch) {
+          const contact = {};
+          
+          const fields = {
+            'first_name': 'firstName',
+            'last_name': 'lastName',
+            'email': 'email',
+            'phone': 'phone',
+            'org_name': 'organization',
+            'address1': 'address1',
+            'address2': 'address2',
+            'address3': 'address3',
+            'city': 'city',
+            'state': 'state',
+            'postal_code': 'postalCode',
+            'country': 'country',
+            'fax': 'fax',
+            'status': 'status'
+          };
+          
+          Object.entries(fields).forEach(([xmlKey, jsonKey]) => {
+            const match = contactMatch[1].match(new RegExp(`<item key="${xmlKey}">([^<]*)<\\/item>`));
+            if (match) contact[jsonKey] = match[1];
+          });
+          
+          if (Object.keys(contact).length > 0) {
+            contacts[type] = contact;
+          }
+        }
+      });
+      
+      if (Object.keys(contacts).length > 0) {
+        attributes.contacts = contacts;
+      }
     }
   }
 
@@ -429,12 +556,14 @@ class OpenSRSClient {
 
   /**
    * Get domain information
+   * @param {string} domain - The domain name
+   * @param {string} type - Type of information to retrieve (all_info, nameservers, status, etc.)
    */
-  async getDomain(domain) {
+  async getDomain(domain, type = 'all_info') {
     try {
-      console.log('🔧 Getting domain info for:', domain);
+      console.log('🔧 Getting domain info for:', domain, 'type:', type);
       
-      const getDomainXml = require('./xml-templates/get-domain')(domain);
+      const getDomainXml = require('./xml-templates/get-domain')(domain, type);
       const result = await this.makeRequest(getDomainXml);
       
       console.log('✅ Domain info result:', result);
@@ -650,10 +779,20 @@ class OpenSRSClient {
   async registerDomain(registrationData) {
     try {
       console.log('🔧 Registering domain:', registrationData.domain);
+      console.log('🔧 Registration data received:', JSON.stringify(registrationData, null, 2));
       
-      const xml = registerDomainTemplate(registrationData);
+      let xml;
+      try {
+        xml = registerDomainTemplate(registrationData);
+        console.log('✅ XML template generated successfully');
+      } catch (templateError) {
+        console.error('❌ XML template generation failed:', templateError.message);
+        console.error('❌ Template error stack:', templateError.stack);
+        throw new Error(`XML template generation failed: ${templateError.message}`);
+      }
+      
       // Use longer timeout for domain registration (30 seconds)
-      const result = await this.makeRequest(xml, 30000);
+      const result = await this.makeRequest(xml, 30010);
       
       console.log('✅ Domain registration result:', result);
       return result;

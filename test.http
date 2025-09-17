@@ -1,4 +1,586 @@
 ### ========================================
+### DNS RECORD MANAGEMENT WORKFLOW TESTS
+### ========================================
+### Based on OpenSRS DNS Zone Commands documentation:
+### https://domains.opensrs.guide/docs/dns-zone-commands-overview
+### 
+### This section demonstrates the complete 5-step workflow:
+### 1. Retrieve existing DNS records (get_dns_zone)
+### 2. Prepare new record to add
+### 3. Merge existing and new records  
+### 4. Update DNS zone (set_dns_zone)
+### 5. Confirm new record is added
+### ========================================
+
+### COMPLETE WORKFLOW DEMONSTRATION
+### This endpoint implements the exact workflow described in the requirements
+
+### Step 1-5: Complete DNS Record Management Workflow
+### Adds a new A record following the exact 5-step process
+POST http://localhost:3001/api/dns/manage-record
+Content-Type: application/json
+
+{
+  "domain": "testdomainalanjohnchacko.com",
+  "record": {
+    "type": "A",
+    "subdomain": "www",
+    "address": "203.0.113.1",
+    "ttl": 3600
+  },
+  "action": "add"
+}
+
+### Expected Response demonstrates each workflow step:
+### {
+###   "success": true,
+###   "message": "DNS record added successfully using complete workflow",
+###   "workflow": {
+###     "step1_retrieve": {
+###       "success": true,
+###       "recordCount": 2,
+###       "records": [
+###         {
+###           "type": "A",
+###           "subdomain": "",
+###           "address": "192.0.2.1",
+###           "ttl": 3600
+###         },
+###         {
+###           "type": "MX", 
+###           "subdomain": "",
+###           "address": "mail.example.com",
+###           "ttl": 3600,
+###           "priority": 10
+###         }
+###       ]
+###     },
+###     "step2_prepare": {
+###       "original": { "type": "A", "subdomain": "www", "address": "203.0.113.1", "ttl": 3600 },
+###       "normalized": { "type": "A", "subdomain": "www", "address": "203.0.113.1", "ttl": 3600 },
+###       "action": "add"
+###     },
+###     "step3_merge": {
+###       "action": "added_new",
+###       "originalCount": 2,
+###       "newCount": 3,
+###       "records": [...]
+###     },
+###     "step4_update": {
+###       "success": true,
+###       "responseCode": 200,
+###       "recordsSet": 3
+###     },
+###     "step5_confirm": {
+###       "success": true,
+###       "finalRecordCount": 3,
+###       "newRecordFound": true,
+###       "allRecords": [...]
+###     }
+###   },
+###   "data": {
+###     "domain": "example.com",
+###     "action": "add", 
+###     "record": { "type": "A", "subdomain": "www", "address": "203.0.113.1", "ttl": 3600 },
+###     "totalRecords": 3,
+###     "recordAdded": true
+###   },
+###   "timestamp": "2025-09-16T18:00:00Z"
+### }
+
+### Update an existing record using the same workflow
+POST http://localhost:3001/api/dns/manage-record
+Content-Type: application/json
+
+{
+  "domain": "example.com",
+  "record": {
+    "type": "A",
+    "subdomain": "",
+    "address": "203.0.113.100",
+    "ttl": 7200
+  },
+  "action": "update"
+}
+
+### Add MX record with priority
+POST http://localhost:3001/api/dns/manage-record
+Content-Type: application/json
+
+{
+  "domain": "testdomainalanjohnchacko.com",
+  "record": {
+    "type": "MX",
+    "subdomain": "",
+    "address": "mail2.example.com",
+    "ttl": 3600,
+    "priority": 20
+  },
+  "action": "add"
+}
+
+### Add CNAME record
+POST http://localhost:3001/api/dns/manage-record
+Content-Type: application/json
+
+{
+  "domain": "example.com",
+  "record": {
+    "type": "CNAME",
+    "subdomain": "blog",
+    "address": "www.example.com",
+    "ttl": 3600
+  },
+  "action": "add"
+}
+
+### ========================================
+### INDIVIDUAL WORKFLOW STEP TESTS
+### ========================================
+### These demonstrate each step of the workflow individually
+
+### STEP 1: Retrieve Existing DNS Records
+### Uses get_dns_zone API to fetch current records
+GET http://localhost:3001/api/dns/get-zone/testdomainalanjohnchacko.com
+
+### Expected Response:
+### {
+###   "success": true,
+###   "data": {
+###     "domain": "example.com",
+###     "records": [
+###       {
+###         "type": "A",
+###         "subdomain": "",
+###         "address": "192.0.2.1",
+###         "ttl": 3600
+###       },
+###       {
+###         "type": "MX",
+###         "subdomain": "",
+###         "address": "mail.example.com", 
+###         "ttl": 3600,
+###         "priority": 10
+###       }
+###     ]
+###   },
+###   "timestamp": "2025-09-16T18:00:00Z"
+### }
+
+### STEP 4: Update DNS Zone with Merged Records
+### Uses set_dns_zone API with the complete merged record set
+POST http://localhost:3001/api/dns/set-zone
+Content-Type: application/json
+
+{
+  "domain": "testdomainalanjohnchacko.com",
+  "records": [
+    {
+      "type": "A",
+      "subdomain": "",
+      "address": "192.0.2.1",
+      "ttl": 3600
+    },
+    {
+      "type": "MX",
+      "subdomain": "",
+      "address": "mail.example.com",
+      "ttl": 3600,
+      "priority": 10
+    },
+    {
+      "type": "A",
+      "subdomain": "www",
+      "address": "203.0.113.1",
+      "ttl": 3600
+    }
+  ]
+}
+
+### Expected Response:
+### {
+###   "success": true,
+###   "data": {
+###     "domain": "example.com",
+###     "records": [
+###       {
+###         "type": "A",
+###         "subdomain": "",
+###         "address": "192.0.2.1", 
+###         "ttl": 3600
+###       },
+###       {
+###         "type": "MX",
+###         "subdomain": "",
+###         "address": "mail.example.com",
+###         "ttl": 3600,
+###         "priority": 10
+###       },
+###       {
+###         "type": "A",
+###         "subdomain": "www",
+###         "address": "203.0.113.1",
+###         "ttl": 3600
+###       }
+###     ]
+###   },
+###   "timestamp": "2025-09-16T18:00:00Z"
+### }
+
+### ========================================
+### ALTERNATIVE APPROACHES (EXISTING APIS)
+### ========================================
+
+### Add single record (uses same workflow internally)
+POST http://localhost:3001/api/dns/add-record
+Content-Type: application/json
+
+{
+  "domain": "testdomainalanjohnchacko.com",
+  "record": {
+    "type": "A",
+    "subdomain": "api",
+    "address": "203.0.113.2",
+    "ttl": 3600
+  }
+}
+
+### Update single record (uses same workflow internally)
+POST http://localhost:3001/api/dns/update-record
+Content-Type: application/json
+
+{
+  "domain": "testdomainalanjohnchacko.com",
+  "record": {
+    "type": "A",
+    "subdomain": "www",
+    "address": "203.0.113.10",
+    "ttl": 7200
+  }
+}
+
+### Create DNS zone with initial records
+POST http://localhost:3001/api/dns/create-zone
+Content-Type: application/json
+
+{
+  "domain": "testdomainalanjohnchacko.com",
+  "records": [
+    {
+      "type": "A",
+      "subdomain": "",
+      "address": "192.0.2.1",
+      "ttl": 3600
+    },
+    {
+      "type": "MX",
+      "subdomain": "",
+      "address": "mail.newdomain.com",
+      "ttl": 3600,
+      "priority": 10
+    }
+  ]
+}
+
+### Delete entire DNS zone
+DELETE http://localhost:3001/api/dns/delete-zone/testdomainalanjohnchacko.com
+
+### ========================================
+### DNS RECORD REMOVAL WORKFLOW TESTS
+### ========================================
+### These demonstrate DNS record removal using the same safe workflow pattern
+
+### SINGLE RECORD REMOVAL WORKFLOW
+### Remove a specific A record with exact address match
+POST http://localhost:3001/api/dns/remove-record
+Content-Type: application/json
+
+{
+  "domain": "testdomainalanjohnchacko.com",
+  "record": {
+    "type": "A",
+    "subdomain": "www",
+    "address": "203.0.113.1"
+  }
+}
+
+### Expected Response demonstrates the removal workflow:
+### {
+###   "success": true,
+###   "message": "DNS record removed successfully using complete workflow",
+###   "workflow": {
+###     "step1_retrieve": {
+###       "success": true,
+###       "recordCount": 3,
+###       "records": [...]
+###     },
+###     "step2_identify": {
+###       "targetRecord": { "type": "A", "subdomain": "www", "address": "203.0.113.1" },
+###       "matchingRecords": [{ "type": "A", "subdomain": "www", "address": "203.0.113.1", "ttl": 3600 }],
+###       "matchCount": 1
+###     },
+###     "step3_filter": {
+###       "originalCount": 3,
+###       "removedCount": 1,
+###       "newCount": 2,
+###       "records": [...]
+###     },
+###     "step4_update": {
+###       "success": true,
+###       "responseCode": 200,
+###       "recordsSet": 2
+###     },
+###     "step5_confirm": {
+###       "success": true,
+###       "finalRecordCount": 2,
+###       "recordRemoved": true,
+###       "allRecords": [...]
+###     }
+###   },
+###   "data": {
+###     "domain": "testdomainalanjohnchacko.com",
+###     "removedRecord": { "type": "A", "subdomain": "www", "address": "203.0.113.1" },
+###     "removedCount": 1,
+###     "remainingRecords": 2,
+###     "confirmed": true
+###   },
+###   "timestamp": "2025-09-16T18:00:00Z"
+### }
+
+### Remove A record by type and subdomain only (no address specified)
+### This will remove the first matching A record for the subdomain
+POST http://localhost:3001/api/dns/remove-record
+Content-Type: application/json
+
+{
+  "domain": "testdomainalanjohnchacko.com",
+  "record": {
+    "type": "A",
+    "subdomain": ""
+  }
+}
+
+### Remove MX record with priority
+POST http://localhost:3001/api/dns/remove-record
+Content-Type: application/json
+
+{
+  "domain": "testdomainalanjohnchacko.com",
+  "record": {
+    "type": "MX",
+    "subdomain": "",
+    "address": "mail2.testdomainalanjohnchacko.com"
+  }
+}
+
+### Remove CNAME record
+POST http://localhost:3001/api/dns/remove-record
+Content-Type: application/json
+
+{
+  "domain": "testdomainalanjohnchacko.com",
+  "record": {
+    "type": "CNAME",
+    "subdomain": "blog"
+  }
+}
+
+### Remove TXT record
+POST http://localhost:3001/api/dns/remove-record
+Content-Type: application/json
+
+{
+  "domain": "testdomainalanjohnchacko.com",
+  "record": {
+    "type": "TXT",
+    "subdomain": "",
+    "address": "v=spf1 include:_spf.google.com ~all"
+  }
+}
+
+### ========================================
+### BULK RECORD REMOVAL
+### ========================================
+
+### Remove multiple records in one operation
+POST http://localhost:3001/api/dns/remove-records
+Content-Type: application/json
+
+{
+  "domain": "testdomainalanjohnchacko.com",
+  "records": [
+    {
+      "type": "A",
+      "subdomain": "api",
+      "address": "203.0.113.2"
+    },
+    {
+      "type": "A", 
+      "subdomain": "cdn"
+    },
+    {
+      "type": "CNAME",
+      "subdomain": "www"
+    }
+  ]
+}
+
+### Expected Response:
+### {
+###   "success": true,
+###   "message": "Successfully removed 3 DNS record(s)",
+###   "data": {
+###     "domain": "testdomainalanjohnchacko.com",
+###     "removedCount": 3,
+###     "remainingRecords": 2,
+###     "removalCriteria": [
+###       { "type": "A", "subdomain": "api", "address": "203.0.113.2" },
+###       { "type": "A", "subdomain": "cdn", "address": null },
+###       { "type": "CNAME", "subdomain": "www", "address": null }
+###     ]
+###   },
+###   "timestamp": "2025-09-16T18:00:00Z"
+### }
+
+### ========================================
+### ERROR SCENARIOS FOR RECORD REMOVAL
+### ========================================
+
+### Attempt to remove non-existent record
+POST http://localhost:3001/api/dns/remove-record
+Content-Type: application/json
+
+{
+  "domain": "testdomainalanjohnchacko.com",
+  "record": {
+    "type": "A",
+    "subdomain": "nonexistent",
+    "address": "1.2.3.4"
+  }
+}
+
+### Expected Error Response:
+### {
+###   "success": false,
+###   "error": "No matching DNS record found. Type: A, Subdomain: \"nonexistent\", Address: 1.2.3.4",
+###   "availableRecords": [...],
+###   "workflow": {...},
+###   "timestamp": "2025-09-16T18:00:00Z"
+### }
+
+### Attempt to remove with ambiguous criteria (multiple matches, no address)
+POST http://localhost:3001/api/dns/remove-record
+Content-Type: application/json
+
+{
+  "domain": "testdomainalanjohnchacko.com",
+  "record": {
+    "type": "A",
+    "subdomain": ""
+  }
+}
+
+### Expected Error Response (if multiple A records exist for root domain):
+### {
+###   "success": false,
+###   "error": "Multiple matching records found (2). Please specify the 'address' field to identify which record to remove.",
+###   "matchingRecords": [...],
+###   "workflow": {...},
+###   "timestamp": "2025-09-16T18:00:00Z"
+### }
+
+### Attempt to remove from non-existent domain
+POST http://localhost:3001/api/dns/remove-record
+Content-Type: application/json
+
+{
+  "domain": "nonexistentdomain12345.com",
+  "record": {
+    "type": "A",
+    "subdomain": "www"
+  }
+}
+
+### ========================================
+### VERIFICATION AFTER REMOVAL
+### ========================================
+
+### Get DNS zone to verify removal
+GET http://localhost:3001/api/dns/get-zone/testdomainalanjohnchacko.com
+
+### ========================================
+### PRACTICAL REMOVAL SCENARIOS
+### ========================================
+
+### Remove all www records (useful for switching to root domain)
+POST http://localhost:3001/api/dns/remove-records
+Content-Type: application/json
+
+{
+  "domain": "testdomainalanjohnchacko.com",
+  "records": [
+    {
+      "type": "A",
+      "subdomain": "www"
+    },
+    {
+      "type": "AAAA",
+      "subdomain": "www"
+    },
+    {
+      "type": "CNAME",
+      "subdomain": "www"
+    }
+  ]
+}
+
+### Remove all subdomain records (cleanup operation)
+POST http://localhost:3001/api/dns/remove-records
+Content-Type: application/json
+
+{
+  "domain": "testdomainalanjohnchacko.com",
+  "records": [
+    {
+      "type": "A",
+      "subdomain": "api"
+    },
+    {
+      "type": "A",
+      "subdomain": "cdn"
+    },
+    {
+      "type": "A",
+      "subdomain": "blog"
+    },
+    {
+      "type": "CNAME",
+      "subdomain": "mail"
+    }
+  ]
+}
+
+### Remove old mail server records before adding new ones
+POST http://localhost:3001/api/dns/remove-records
+Content-Type: application/json
+
+{
+  "domain": "testdomainalanjohnchacko.com",
+  "records": [
+    {
+      "type": "MX",
+      "subdomain": "",
+      "address": "oldmail.testdomainalanjohnchacko.com"
+    },
+    {
+      "type": "TXT",
+      "subdomain": "",
+      "address": "v=spf1 include:oldprovider.com ~all"
+    }
+  ]
+}
+
+### ========================================
 ### DOMAIN SEARCH API TESTS
 ### ========================================
 ### Based on OpenSRS API documentation
@@ -10,7 +592,7 @@
 ### 1. Combined Domain Search with Suggestions and Pricing
 ### This endpoint combines all three OpenSRS APIs to provide
 ### a complete search result with availability and pricing
-POST http://localhost:3000/api/domains/search
+POST http://localhost:3001/api/domains/search
 Content-Type: application/json
 
 {
@@ -42,7 +624,7 @@ Content-Type: application/json
 
 ### 2. Domain Lookup (Single Domain Availability Check)
 ### Based on: https://domains.opensrs.guide/docs/lookup-domain
-POST http://localhost:3000/api/domains/lookup
+POST http://localhost:3001/api/domains/lookup
 Content-Type: application/json
 
 {
@@ -50,7 +632,7 @@ Content-Type: application/json
 }
 
 ### 3. Domain Lookup - Test with Different Domain
-POST http://localhost:3000/api/domains/lookup
+POST http://localhost:3001/api/domains/lookup
 Content-Type: application/json
 
 {
@@ -59,14 +641,14 @@ Content-Type: application/json
 
 ### 4. Get Domain Price
 ### Based on: https://domains.opensrs.guide/docs/get_price
-GET http://localhost:3000/api/domains/alan.com/price
+GET http://localhost:3001/api/domains/alan.com/price
 
 ### 5. Get Domain Price - Different Domain
-GET http://localhost:3000/api/domains/example.org/price
+GET http://localhost:3001/api/domains/example.org/price
 
 ### 6. Name Suggestions
 ### Based on: https://domains.opensrs.guide/docs/name_suggest
-POST http://localhost:3000/api/domains/suggestions
+POST http://localhost:3001/api/domains/suggestions
 Content-Type: application/json
 
 {
@@ -74,7 +656,7 @@ Content-Type: application/json
 }
 
 ### 7. Name Suggestions - Different Search
-POST http://localhost:3000/api/domains/suggestions
+POST http://localhost:3001/api/domains/suggestions
 Content-Type: application/json
 
 {
@@ -86,7 +668,7 @@ Content-Type: application/json
 ### ========================================
 
 ### 8. Search for Common Name
-POST http://localhost:3000/api/domains/search
+POST http://localhost:3001/api/domains/search
 Content-Type: application/json
 
 {
@@ -94,7 +676,7 @@ Content-Type: application/json
 }
 
 ### 9. Search for Business Term  
-POST http://localhost:3000/api/domains/search
+POST http://localhost:3001/api/domains/search
 Content-Type: application/json
 
 {
@@ -102,7 +684,7 @@ Content-Type: application/json
 }
 
 ### 10. Search for Unique Name
-POST http://localhost:3000/api/domains/search
+POST http://localhost:3001/api/domains/search
 Content-Type: application/json
 
 {
@@ -114,21 +696,21 @@ Content-Type: application/json
 ### ========================================
 
 ### 11. Missing search_query parameter
-POST http://localhost:3000/api/domains/search
+POST http://localhost:3001/api/domains/search
 Content-Type: application/json
 
 {
 }
 
 ### 12. Missing domain parameter
-POST http://localhost:3000/api/domains/lookup
+POST http://localhost:3001/api/domains/lookup
 Content-Type: application/json
 
 {
 }
 
 ### 13. Missing search_string parameter
-POST http://localhost:3000/api/domains/suggestions
+POST http://localhost:3001/api/domains/suggestions
 Content-Type: application/json
 
 {
@@ -139,24 +721,24 @@ Content-Type: application/json
 ### ========================================
 
 ### 14. Server Health Check
-GET http://localhost:3000/health
+GET http://localhost:3001/health
 
 ### ========================================
 ### CACHE MANAGEMENT
 ### ========================================
 
 ### 15. Get Cache Statistics
-GET http://localhost:3000/api/domains/cache/stats
+GET http://localhost:3001/api/domains/cache/stats
 
 ### 16. Clear Expired Cache Entries
-POST http://localhost:3000/api/domains/cache/clear
+POST http://localhost:3001/api/domains/cache/clear
 
 ### ========================================
 ### PERFORMANCE TESTING
 ### ========================================
 
 ### 17. Test Cache Performance - First Request (uncached)
-POST http://localhost:3000/api/domains/search
+POST http://localhost:3001/api/domains/search
 Content-Type: application/json
 
 {
@@ -164,7 +746,7 @@ Content-Type: application/json
 }
 
 ### 18. Test Cache Performance - Second Request (should be faster with cache)
-POST http://localhost:3000/api/domains/search
+POST http://localhost:3001/api/domains/search
 Content-Type: application/json
 
 {
@@ -177,7 +759,7 @@ Content-Type: application/json
 
 ### 19. Modify Domain Auto-Renew Settings
 ### Enable auto-renew and disable let-expire
-PUT http://localhost:3000/api/domains/example.com/autorenew
+PUT http://localhost:3001/api/domains/example.com/autorenew
 Content-Type: application/json
 
 {
@@ -187,7 +769,7 @@ Content-Type: application/json
 
 ### 20. Modify Domain Auto-Renew Settings (Alternative format)
 ### Disable auto-renew and enable let-expire
-PUT http://localhost:3000/api/domains/example.com/autorenew
+PUT http://localhost:3001/api/domains/example.com/autorenew
 Content-Type: application/json
 
 {
@@ -196,7 +778,7 @@ Content-Type: application/json
 }
 
 ### 21. Enable WHOIS Privacy
-PUT http://localhost:3000/api/domains/example.com/whois-privacy
+PUT http://localhost:3001/api/domains/example.com/whois-privacy
 Content-Type: application/json
 
 {
@@ -204,7 +786,7 @@ Content-Type: application/json
 }
 
 ### 22. Disable WHOIS Privacy
-PUT http://localhost:3000/api/domains/testdomainalanjohnchacko.com/whois-privacy
+PUT http://localhost:3001/api/domains/testdomainalanjohnchacko.com/whois-privacy
 Content-Type: application/json
 
 {
@@ -216,7 +798,7 @@ Content-Type: application/json
 ### ========================================
 
 ### 23. Auto-renew with missing parameters
-PUT http://localhost:3000/api/domains/testdomainalanjohnchacko.com/autorenew
+PUT http://localhost:3001/api/domains/testdomainalanjohnchacko.com/autorenew
 Content-Type: application/json
 
 {
@@ -225,7 +807,7 @@ Content-Type: application/json
 }
 
 ### 24. Auto-renew with invalid parameters
-PUT http://localhost:3000/api/domains/example.com/autorenew
+PUT http://localhost:3001/api/domains/example.com/autorenew
 Content-Type: application/json
 
 {
@@ -234,7 +816,7 @@ Content-Type: application/json
 }
 
 ### 25. WHOIS privacy with invalid state
-PUT http://localhost:3000/api/domains/testdomainalanjohnchacko.com/whois-privacy
+PUT http://localhost:3001/api/domains/testdomainalanjohnchacko.com/whois-privacy
 Content-Type: application/json
 
 {
@@ -242,7 +824,7 @@ Content-Type: application/json
 }
 
 ### 26. WHOIS privacy with missing state
-PUT http://localhost:3000/api/domains/example.com/whois-privacy
+PUT http://localhost:3001/api/domains/example.com/whois-privacy
 Content-Type: application/json
 
 {
@@ -253,17 +835,17 @@ Content-Type: application/json
 ### ========================================
 
 ### 36. Update Domain Nameservers (Assign)
-POST http://localhost:3000/api/nameservers/update
+POST http://localhost:3001/api/nameservers/update
 Content-Type: application/json
 
 {
-  "domain": "example.com",
+  "domain": "testdomainalanjohnchacko.com",
   "op_type": "assign",
-  "nameservers": ["ns1.example.com", "ns2.example.com"]
+  "nameservers": ["ns1.systemdns.com", "ns2.systemdns.com"]
 }
 
 ### 37. Update Domain Nameservers (Remove)
-POST http://localhost:3000/api/nameservers/update
+POST http://localhost:3001/api/nameservers/update
 Content-Type: application/json
 
 {
@@ -273,10 +855,10 @@ Content-Type: application/json
 }
 
 ### 38. Get Nameserver Information
-GET http://localhost:3000/api/nameservers/ns1.example.com
+GET http://localhost:3001/api/nameservers/ns1.example.com
 
 ### 39. Create Nameserver
-POST http://localhost:3000/api/nameservers/create
+POST http://localhost:3001/api/nameservers/create
 Content-Type: application/json
 
 {
@@ -285,7 +867,7 @@ Content-Type: application/json
 }
 
 ### 40. Modify Nameserver
-PUT http://localhost:3000/api/nameservers/ns1.example.com
+PUT http://localhost:3001/api/nameservers/ns1.example.com
 Content-Type: application/json
 
 {
@@ -293,10 +875,10 @@ Content-Type: application/json
 }
 
 ### 41. Delete Nameserver
-DELETE http://localhost:3000/api/nameservers/ns1.example.com
+DELETE http://localhost:3001/api/nameservers/ns1.example.com
 
 ### 42. Registry Check Nameserver
-POST http://localhost:3000/api/nameservers/check
+POST http://localhost:3001/api/nameservers/check
 Content-Type: application/json
 
 {
@@ -305,7 +887,7 @@ Content-Type: application/json
 }
 
 ### 43. Registry Check Nameserver (All TLDs)
-POST http://localhost:3000/api/nameservers/check
+POST http://localhost:3001/api/nameservers/check
 Content-Type: application/json
 
 {
@@ -317,7 +899,7 @@ Content-Type: application/json
 ### ========================================
 
 ### 44. Update nameservers with missing parameters
-POST http://localhost:3000/api/nameservers/update
+POST http://localhost:3001/api/nameservers/update
 Content-Type: application/json
 
 {
@@ -325,7 +907,7 @@ Content-Type: application/json
 }
 
 ### 45. Update nameservers with invalid op_type
-POST http://localhost:3000/api/nameservers/update
+POST http://localhost:3001/api/nameservers/update
 Content-Type: application/json
 
 {
@@ -335,7 +917,7 @@ Content-Type: application/json
 }
 
 ### 46. Create nameserver with missing nameserver
-POST http://localhost:3000/api/nameservers/create
+POST http://localhost:3001/api/nameservers/create
 Content-Type: application/json
 
 {
@@ -347,7 +929,7 @@ Content-Type: application/json
 ### ========================================
 
 ### 27. Add A Record
-POST http://localhost:3000/api/dns/add-record
+POST http://localhost:3001/api/dns/add-record
 Content-Type: application/json
 
 {
@@ -361,7 +943,7 @@ Content-Type: application/json
 }
 
 ### 28. Update A Record
-POST http://localhost:3000/api/dns/update-record
+POST http://localhost:3001/api/dns/update-record
 Content-Type: application/json
 
 {
@@ -375,11 +957,11 @@ Content-Type: application/json
 }
 
 ### 29. Add CNAME Record
-POST http://localhost:3000/api/dns/add-record
+POST http://localhost:3001/api/dns/add-record
 Content-Type: application/json
 
 {
-  "domain": "example.com",
+  "domain": "testdomainalanjohnchacko.com",
   "record": {
     "type": "CNAME",
     "host": "www",
@@ -389,11 +971,11 @@ Content-Type: application/json
 }
 
 ### 30. Add MX Record
-POST http://localhost:3000/api/dns/add-record
+POST http://localhost:3001/api/dns/add-record
 Content-Type: application/json
 
 {
-  "domain": "example.com",
+  "domain": "testdomainalanjohnchacko.com",
   "record": {
     "type": "MX",
     "host": "",
@@ -404,7 +986,7 @@ Content-Type: application/json
 }
 
 ### 31. Add TXT Record
-POST http://localhost:3000/api/dns/add-record
+POST http://localhost:3001/api/dns/add-record
 Content-Type: application/json
 
 {
@@ -418,7 +1000,7 @@ Content-Type: application/json
 }
 
 ### 32. Add AAAA Record
-POST http://localhost:3000/api/dns/add-record
+POST http://localhost:3001/api/dns/add-record
 Content-Type: application/json
 
 {
@@ -436,7 +1018,7 @@ Content-Type: application/json
 ### ========================================
 
 ### 33. Add record with missing type
-POST http://localhost:3000/api/dns/add-record
+POST http://localhost:3001/api/dns/add-record
 Content-Type: application/json
 
 {
@@ -448,7 +1030,7 @@ Content-Type: application/json
 }
 
 ### 34. Add record with missing value/address
-POST http://localhost:3000/api/dns/add-record
+POST http://localhost:3001/api/dns/add-record
 Content-Type: application/json
 
 {
@@ -460,7 +1042,7 @@ Content-Type: application/json
 }
 
 ### 35. Update record with missing domain
-POST http://localhost:3000/api/dns/update-record
+POST http://localhost:3001/api/dns/update-record
 Content-Type: application/json
 
 {

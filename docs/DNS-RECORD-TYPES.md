@@ -26,7 +26,7 @@ Maps a domain name to an IPv4 address.
 
 **Example:**
 ```bash
-curl -X POST http://localhost:3000/api/dns/add-record \
+curl -X POST http://localhost:3001/api/dns/add-record \
   -H "Content-Type: application/json" \
   -d '{
     "domain": "example.com",
@@ -63,7 +63,7 @@ Maps a domain name to an IPv6 address.
 
 **Example:**
 ```bash
-curl -X POST http://localhost:3000/api/dns/add-record \
+curl -X POST http://localhost:3001/api/dns/add-record \
   -H "Content-Type: application/json" \
   -d '{
     "domain": "example.com",
@@ -100,7 +100,7 @@ Creates an alias from one domain name to another.
 
 **Example:**
 ```bash
-curl -X POST http://localhost:3000/api/dns/add-record \
+curl -X POST http://localhost:3001/api/dns/add-record \
   -H "Content-Type: application/json" \
   -d '{
     "domain": "example.com",
@@ -139,7 +139,7 @@ Specifies mail servers for the domain.
 
 **Example:**
 ```bash
-curl -X POST http://localhost:3000/api/dns/add-record \
+curl -X POST http://localhost:3001/api/dns/add-record \
   -H "Content-Type: application/json" \
   -d '{
     "domain": "example.com",
@@ -237,7 +237,7 @@ Specifies location of services.
 
 **Example:**
 ```bash
-curl -X POST http://localhost:3000/api/dns/add-record \
+curl -X POST http://localhost:3001/api/dns/add-record \
   -H "Content-Type: application/json" \
   -d '{
     "domain": "example.com",

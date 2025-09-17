@@ -6,13 +6,29 @@ const router = express.Router();
  * @desc Health check endpoint
  * @access Public
  */
-router.get('/health', (req, res) => {
-  res.json({
-    status: 'OK',
-    timestamp: new Date().toISOString(),
-    service: 'OpenSRS Domain Search API',
-    version: '1.0.0'
-  });
+router.get('/health', async (req, res) => {
+  try {
+    const dbHealth = await req.database.healthCheck();
+    
+    res.json({
+      status: 'OK',
+      timestamp: new Date().toISOString(),
+      service: 'OpenSRS Domain Management API',
+      version: '1.0.0',
+      database: dbHealth
+    });
+  } catch (error) {
+    res.status(503).json({
+      status: 'ERROR',
+      timestamp: new Date().toISOString(),
+      service: 'OpenSRS Domain Management API',
+      version: '1.0.0',
+      database: {
+        healthy: false,
+        error: error.message
+      }
+    });
+  }
 });
 
 /**
